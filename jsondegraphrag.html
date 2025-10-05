@@ -1,0 +1,200 @@
+{
+  "name": "GraphRAG Academic Analyst - Two Agent Workflow",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "Chat Trigger",
+      "type": "n8n-nodes-base.httpTrigger",
+      "typeVersion": 1,
+      "position": [250, 250],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat-webhook",
+        "responseMode": "onReceived",
+        "options": {
+          "responseData": "={{ $json[\"reply\"] || \"Accepted\" }}"
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "Save Attachments",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [600, 250],
+      "parameters": {
+        "binaryPropertyName": "data",
+        "filePath": "={{ $binaryData.filename || (\"/tmp/graphrag_files/\" + (new Date()).getTime()) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "3",
+      "name": "Extract Text from PDF(s)",
+      "type": "n8n-nodes-base.pdfExtract",
+      "typeVersion": 1,
+      "position": [950, 250],
+      "parameters": {
+        "binaryPropertyName": "data",
+        "textPropertyName": "pdfText",
+        "options": {
+          "extractAllPages": true
+        }
+      }
+    },
+    {
+      "id": "4",
+      "name": "Research Agent - LLM (Google Gemini)",
+      "type": "n8n-nodes-base.llm",
+      "typeVersion": 1,
+      "position": [1250, 250],
+      "parameters": {
+        "model": "GENERIC_GEMINI_PLACEHOLDER",
+        "credentials": "=replace_with_your_llm_credentials",
+        "promptTemplate": "System: Actúas como un agente de investigación.\nTask: Recibe el texto extraído de PDFs y realiza búsqueda web suplementaria usando SearXNG cuando sea necesario. Resume hallazgos relevantes, lista conceptos clave y relaciones semánticas, y entrega un texto resumen estructurado (campo: research_summary).\nInput: {{$json.pdfText}}\nOutput format: JSON with keys: research_summary, concepts_raw, candidate_queries.\n",
+        "temperature": 0.0,
+        "maxTokens": 1200
+      }
+    },
+    {
+      "id": "5",
+      "name": "Web Search (SearXNG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1250, 450],
+      "parameters": {
+        "url": "={{ $json.search_url || 'https://your-searxng-instance/search' }}",
+        "method": "GET",
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "q",
+              "value": "={{ $json.query || $json.search_query || $node['Research Agent - LLM (Google Gemini)'].json['candidate_queries'] || '' }}"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "responseFormat": "json"
+        }
+      }
+    },
+    {
+      "id": "6",
+      "name": "Consolidate Research Results (Function)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1500, 300],
+      "parameters": {
+        "functionCode": "// Consolidate LLM summary + search results into a single JSON for GraphRAG processing\nconst research = $node['Research Agent - LLM (Google Gemini)'].json || {};\nconst search = $node['Web Search (SearXNG)'].json || {};\nreturn [{ json: { research_summary: research.research_summary || research.text || (research.answer || ''), web_hits: search, concepts_raw: research.concepts_raw || [], combined_text: (research.research_summary || '') + '\n' + (search.results ? JSON.stringify(search.results.slice(0,3)) : '') } }];"
+      }
+    },
+    {
+      "id": "7",
+      "name": "GraphRAG Processor (Function)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1750, 300],
+      "parameters": {
+        "functionCode": "// Simple GraphRAG-style processor: extract candidate concepts, build adjacency by co-occurrence, detect weakly connected nodes (gaps)\nconst text = $json.combined_text || '';
+const normalize = s => s.toLowerCase().replace(/[^a-z0-9\s]/g,'');
+const tokens = normalize(text).split(/\s+/).filter(Boolean);
+// naive candidate concept extraction: bigrams and frequent nouns-like tokens
+const freq = {};
+for (let t of tokens) freq[t] = (freq[t] || 0) + 1;
+const candidates = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,50).map(x=>x[0]);
+// build co-occurrence matrix for sliding window
+const windowSize = 8;
+const edges = {};
+for (let i=0;i<tokens.length;i++){
+  const a = tokens[i];
+  for (let j=i+1;j<Math.min(i+windowSize,tokens.length);j++){
+    const b = tokens[j];
+    if (a===b) continue;
+    const key = [a,b].sort().join('::');
+    edges[key] = (edges[key]||0)+1;
+  }
+}
+// select edges among top candidates
+const filteredEdges = Object.entries(edges).sort((a,b)=>b[1]-a[1]).slice(0,200).map(e=>({pair:e[0].split('::'),weight:e[1]}));
+// compute degree per node
+const degree = {};
+for (let e of filteredEdges){
+  degree[e.pair[0]] = (degree[e.pair[0]]||0)+1;
+  degree[e.pair[1]] = (degree[e.pair[1]]||0)+1;
+}
+// identify low-degree nodes as gaps
+const gapCandidates = Object.keys(degree).filter(n=>degree[n]<=1).slice(0,10);
+// cluster by simple connected components (union-find)
+const nodes = Array.from(new Set(filteredEdges.flatMap(e=>e.pair)));
+const parent = {};
+const find=(x)=>{ parent[x]=parent[x]||x; return parent[x]===x?x:(parent[x]=find(parent[x])); };
+const union=(a,b)=>{ const ra=find(a); const rb=find(b); if(ra!==rb) parent[ra]=rb; };
+for (let e of filteredEdges) union(e.pair[0], e.pair[1]);
+const clustersMap = {};
+for (let n of nodes){ const r = find(n); clustersMap[r]=clustersMap[r]||[]; clustersMap[r].push(n); }
+const clusters = Object.values(clustersMap).slice(0,10);
+// prepare output
+return [{ json: { topics_detected: candidates.slice(0,5), clusters, gaps: gapCandidates, edges: filteredEdges.slice(0,50) } }];"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Sentiment Analysis Agent (LLM)",
+      "type": "n8n-nodes-base.llm",
+      "typeVersion": 1,
+      "position": [2000, 300],
+      "parameters": {
+        "model": "GENERIC_GEMINI_PLACEHOLDER",
+        "credentials": "=replace_with_your_llm_credentials",
+        "promptTemplate": "System: Actúas como agente de análisis de sentimientos.\nInput: {{$json.research_summary}}\nTask: Analiza la tonalidad del texto y devuelve: sentiment: (positive|neutral|negative), confidence: 0-1, short_explanation. Output as JSON.",
+        "temperature": 0.0,
+        "maxTokens": 300
+      }
+    },
+    {
+      "id": "9",
+      "name": "Format Final Output (Function)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 300],
+      "parameters": {
+        "functionCode": "const graph = $node['GraphRAG Processor (Function)'].json;\nconst sentiment = $node['Sentiment Analysis Agent (LLM)'].json || {};\nconst research = $node['Consolidate Research Results (Function)'].json || {};\nconst output = {
+  'Temas principales detectados': graph.topics_detected || [],
+  'Clústeres temáticos': graph.clusters || [],
+  'Brechas de contenido': graph.gaps || [],
+  'Preguntas de investigación sugeridas': (graph.gaps || []).slice(0,5).map((g,i)=>`¿Cómo se relaciona ${g} con ${graph.topics_detected[i%graph.topics_detected.length] || 'tema relacionado'}?`),
+  'Sentiment': sentiment
+};
+return [{ json: { reply: output } }];"
+      }
+    },
+    {
+      "id": "10",
+      "name": "Respond to Chat (HTTP Response)",
+      "type": "n8n-nodes-base.httpResponse",
+      "typeVersion": 1,
+      "position": [2500, 300],
+      "parameters": {
+        "responseMode": "lastNode",
+        "responsePropertyName": "reply"
+      }
+    }
+  ],
+  "connections": {
+    "Chat Trigger": { "main": [[{"node":"Save Attachments","type":"main","index":0}]] },
+    "Save Attachments": { "main": [[{"node":"Extract Text from PDF(s)","type":"main","index":0}]] },
+    "Extract Text from PDF(s)": { "main": [[{"node":"Research Agent - LLM (Google Gemini)","type":"main","index":0}]] },
+    "Research Agent - LLM (Google Gemini)": { "main": [[{"node":"Web Search (SearXNG)","type":"main","index":0},{"node":"Consolidate Research Results (Function)","type":"main","index":0}]] },
+    "Web Search (SearXNG)": { "main": [[{"node":"Consolidate Research Results (Function)","type":"main","index":0}]] },
+    "Consolidate Research Results (Function)": { "main": [[{"node":"GraphRAG Processor (Function)","type":"main","index":0}]] },
+    "GraphRAG Processor (Function)": { "main": [[{"node":"Sentiment Analysis Agent (LLM)","type":"main","index":0},{"node":"Format Final Output (Function)","type":"main","index":0}]] },
+    "Sentiment Analysis Agent (LLM)": { "main": [[{"node":"Format Final Output (Function)","type":"main","index":0}]] },
+    "Format Final Output (Function)": { "main": [[{"node":"Respond to Chat (HTTP Response)","type":"main","index":0}]] }
+  },
+  "active": false,
+  "settings": {}
+}
