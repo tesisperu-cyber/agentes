@@ -1,0 +1,268 @@
+# ✅ Chat con recuadro + audio en Google Colab (OpenAI)
+
+# - Muestra un recuadro para escribir y botón "Enviar"
+
+# - Saluda con "hola,en qué puedo ayudarte"
+
+# - Responde en texto y reproduce audio dentro del notebook
+
+
+
+!pip -q install openai requests ipywidgets
+
+
+
+import os, tempfile, requests, html
+
+import ipywidgets as widgets
+
+from IPython.display import Audio, display, HTML, clear_output
+
+from openai import OpenAI
+
+
+
+# (Opcional, ayuda a que los widgets funcionen en Colab)
+
+try:
+
+  from google.colab import output as colab_output
+
+  colab_output.enable_custom_widget_manager()
+
+except Exception:
+
+  pass
+
+
+
+# 🔑 Tu API key (o usa variable de entorno OPENAI_API_KEY)
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or "DIGITA_TU_API_KEY"
+
+
+
+# Modelos (ajústalos si hace falta)
+
+CHAT_MODEL = "gpt-4o-mini"
+
+TTS_MODEL = "gpt-4o-mini-tts" # Si da error, prueba "tts-1"
+
+VOICE   = "alloy"
+
+
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+
+# ---- Utilidades ----
+
+def tts_to_mp3(texto: str) -> str:
+
+  """Convierte texto a voz (MP3) usando OpenAI y devuelve ruta temporal."""
+
+  url = "https://api.openai.com/v1/audio/speech"
+
+  headers = {
+
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+
+    "Content-Type": "application/json",
+
+  }
+
+  payload = {"model": TTS_MODEL, "voice": VOICE, "input": texto, "format": "mp3"}
+
+  r = requests.post(url, headers=headers, json=payload)
+
+  r.raise_for_status()
+
+  with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+
+    f.write(r.content)
+
+    return f.name
+
+
+
+def say(texto: str, autoplay: bool = True):
+
+  """Muestra un reproductor de audio en el notebook."""
+
+  mp3_path = tts_to_mp3(texto)
+
+  display(Audio(filename=mp3_path, autoplay=autoplay))
+
+
+
+def chat_reply(history: list, user_text: str) -> str:
+
+  """Llama al modelo de chat y devuelve la respuesta."""
+
+  history.append({"role": "user", "content": user_text})
+
+  resp = client.chat.completions.create(
+
+    model=CHAT_MODEL,
+
+    messages=history,
+
+    temperature=0.7,
+
+  )
+
+  answer = (resp.choices[0].message.content or "").strip()
+
+  history.append({"role": "assistant", "content": answer})
+
+  return answer
+
+
+
+def render_message(speaker: str, text: str):
+
+  """Pinta un mensaje bonito en el área de chat."""
+
+  who = "🧑‍💻 Tú" if speaker == "user" else "🤖 Asistente"
+
+  safe = html.escape(text).replace("\n", "<br>")
+
+  display(HTML(f"""
+
+  <div style="
+
+    font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+    background: {'#eef6ff' if speaker=='user' else '#f6f6f6'};
+
+    border: 1px solid #e5e7eb; border-radius: 12px;
+
+    padding: 10px 12px; margin: 6px 0;">
+
+    <div style="font-weight:600; font-size: 13px; opacity: .7; margin-bottom: 4px;">{who}</div>
+
+    <div style="font-size:14px; line-height:1.5;">{safe}</div>
+
+  </div>
+
+  """))
+
+
+
+# ---- UI ----
+
+chat_area = widgets.Output(layout={
+
+  "border": "1px solid #ddd", "height": "320px",
+
+  "overflow_y": "auto", "padding": "8px", "background": "white"
+
+})
+
+txt = widgets.Text(placeholder="Escribe aquí y presiona Enter…", layout=widgets.Layout(flex="1 1 auto"))
+
+btn = widgets.Button(description="Enviar", button_style="", tooltip="Enviar mensaje")
+
+voice_ck = widgets.Checkbox(value=True, description="Reproducir audio")
+
+reset_btn = widgets.Button(description="Reiniciar", button_style="warning", tooltip="Borrar historial")
+
+
+
+controls = widgets.HBox([txt, btn])
+
+options = widgets.HBox([voice_ck, reset_btn])
+
+ui = widgets.VBox([chat_area, controls, options])
+
+
+
+display(ui)
+
+
+
+# ---- Lógica de chat ----
+
+history = [{"role": "system", "content": "Responde en español, claro y útil."}]
+
+
+
+def greet():
+
+  with chat_area:
+
+    render_message("assistant", "hola,en qué puedo ayudarte")
+
+    try:
+
+      if voice_ck.value:
+
+        say("hola,en qué puedo ayudarte", autoplay=True)
+
+    except Exception as e:
+
+      render_message("assistant", f"(No se pudo reproducir audio: {e})")
+
+
+
+def handle_send(_):
+
+  user_text = txt.value.strip()
+
+  if not user_text:
+
+    return
+
+  txt.value = ""
+
+  with chat_area:
+
+    render_message("user", user_text)
+
+    try:
+
+      answer = chat_reply(history, user_text)
+
+      render_message("assistant", answer)
+
+      if voice_ck.value:
+
+        say(answer, autoplay=True)
+
+    except Exception as e:
+
+      render_message("assistant", f"Hubo un error: {e}")
+
+  # Mantener el scroll al final
+
+  chat_area.scroll_to_bottom()
+
+
+
+def handle_reset(_):
+
+  history[:] = [{"role": "system", "content": "Responde en español, claro y útil."}]
+
+  with chat_area:
+
+    clear_output()
+
+  greet()
+
+
+
+# Eventos (Enter o botón)
+
+txt.on_submit(handle_send)
+
+btn.on_click(handle_send)
+
+reset_btn.on_click(handle_reset)
+
+
+
+# Saludo inicial
+
+greet()
+
