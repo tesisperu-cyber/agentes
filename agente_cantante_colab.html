@@ -1,0 +1,134 @@
+
+# agente_cantante_colab.py
+# Para ejecutar en Google Colab:
+# 1) Sube este archivo a Colab o copia/pega en una celda.
+# 2) Ejecuta la celda. Se instalarán dependencias y se generará/escuchará la canción.
+#
+# Requisitos en Colab: internet (gTTS usa el servicio de Google), ffmpeg para pydub.
+#
+# Uso: Ejecutar la celda completa en Colab; la canción se reproducirá en el notebook.
+
+# ===== Código =====
+import os
+from gtts import gTTS
+import numpy as np
+import tempfile
+from pydub import AudioSegment
+from IPython.display import Audio, display
+import math
+
+def generar_letra_infantil():
+    # Letra simple para educación inicial (repetitiva, fácil de memorizar)
+    letra = [
+        "Hola amiguitos, vamos a jugar,",
+        "saltando y cantando, vamos a bailar.",
+        "El sol brilla alto y el cielo es azul,",
+        "con sonrisas y canciones, todos juntos tú y yo.",
+        "La la la, la la la, cantemos sin parar,",
+        "La la la, la la la, ven conmigo a cantar."
+    ]
+    # Repetir un estribillo
+    letra_total = letra + ["Estribillo: La la la, la la la, cantemos sin parar."] * 2
+    return "\\n".join(letra_total)
+
+def generar_melodia_sencilla(bpm=100, notas=None, sr=22050):
+    # Genera una melodía simple (sine waves) en formato numpy float32 (-1..1)
+    NOTE_FREQS = {
+        'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+        'G4': 392.00, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25
+    }
+    if notas is None:
+        notas = [('C4',1), ('D4',1), ('E4',1), ('C4',1),
+                 ('E4',1), ('G4',2), ('E4',1), ('D4',1)]
+    beat_sec = 60.0 / bpm
+    audio = np.array([], dtype=np.float32)
+    for n, dur_ticks in notas:
+        dur = beat_sec * dur_ticks
+        freq = NOTE_FREQS.get(n, 440.0)
+        t = np.linspace(0, dur, int(sr * dur), False)
+        # envolvente para suavizar inicio/fin
+        attack = int(0.03 * sr)
+        release = int(0.03 * sr)
+        env = np.ones_like(t)
+        if attack+release < t.size:
+            env[:attack] = np.linspace(0,1,attack)
+            env[-release:] = np.linspace(1,0,release)
+        wave = 0.4 * np.sin(2 * np.pi * freq * t) * env
+        audio = np.concatenate((audio, wave.astype(np.float32)))
+    # normalizar
+    if audio.size:
+        audio = audio / np.max(np.abs(audio)) * 0.9
+    return sr, audio
+
+def guardar_wav_from_numpy(path_wav, sr, audio_float32):
+    # convierta a int16 y guarde usando pydub via raw data
+    int16 = np.int16(audio_float32 * 32767)
+    # escribir WAV de forma simple usando pydub
+    temp_raw = tempfile.NamedTemporaryFile(suffix='.raw', delete=False).name
+    int16.tofile(temp_raw)
+    # usar AudioSegment para leer raw y exportar wav
+    seg = AudioSegment(
+        data=open(temp_raw, 'rb').read(),
+        sample_width=2,
+        frame_rate=sr,
+        channels=1
+    )
+    seg.export(path_wav, format='wav')
+    os.remove(temp_raw)
+    return path_wav
+
+def tts_google_guardar(letra_texto, ruta_out_wav, lang='es'):
+    tts = gTTS(text=letra_texto, lang=lang, slow=False)
+    # gTTS guarda a mp3, luego convertimos a wav con pydub
+    tmp_mp3 = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False).name
+    tts.save(tmp_mp3)
+    # convertir a wav
+    audio = AudioSegment.from_mp3(tmp_mp3)
+    audio.export(ruta_out_wav, format='wav')
+    os.remove(tmp_mp3)
+    return ruta_out_wav
+
+def mezclar_voces_y_melodia(path_wav_voz, sr_mel, mel_array, salida_mp3):
+    # Guardar melodía como wav temporal
+    tmp_mel_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
+    guardar_wav_from_numpy(tmp_mel_wav, sr_mel, mel_array)
+    # Cargar con pydub
+    voz = AudioSegment.from_wav(path_wav_voz)
+    mel = AudioSegment.from_wav(tmp_mel_wav)
+
+    # Ajustar duración: repetir melodía si es más corta
+    if len(mel) < len(voz):
+        repeats = int(math.ceil(len(voz)/len(mel)))
+        mel = mel * repeats
+    mel = mel[:len(voz)]
+
+    # ajustar volumen de la melodía
+    mel = mel - 10  # bajar 10 dB
+    mezcla = voz.overlay(mel)
+    mezcla.export(salida_mp3, format='mp3')
+    os.remove(tmp_mel_wav)
+    return salida_mp3
+
+def generar_y_reproducir(bpm=100):
+    print("Generando letra...")
+    letra = generar_letra_infantil()
+    print(letra)
+    print("\\nGenerando TTS (gTTS)... esto usa el servicio de Google y requiere internet en Colab.")
+    tmp_wav_voz = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
+    tts_google_guardar(letra, tmp_wav_voz, lang='es')
+
+    print("Generando melodía simple...")
+    sr, mel = generar_melodia_sencilla(bpm=bpm)
+
+    salida_mp3 = tempfile.NamedTemporaryFile(suffix='.mp3', delete=False).name
+    mezclar_voces_y_melodia(tmp_wav_voz, sr, mel, salida_mp3)
+
+    print("Reproduciendo en notebook (mp3)...")
+    display(Audio(salida_mp3, autoplay=True))
+    print("Archivo generado en:", salida_mp3)
+    return salida_mp3
+
+if __name__ == "__main__":
+    # En Colab, ejecuta la función principal
+    generar_y_reproducir(bpm=100)
+
