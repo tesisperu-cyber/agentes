@@ -1,0 +1,344 @@
+import pandas as pd
+import gradio as gr
+
+print("=" * 70)
+print("✅ ASISTENTE DE DECISIÓN ESTADÍSTICA - VERSIÓN COMPLETA")
+print("=" * 70)
+print("💡 Los datos están embebidos en el código")
+print("📱 No necesitas subir Excel")
+print("=" * 70)
+
+# ============================================================================
+# DATOS EMBEBIDOS: LAS 5 PREGUNTAS
+# ============================================================================
+
+preguntas = [
+    {
+        "pregunta": "1. ¿Con cuántas variables está trabajando?",
+        "opciones": ["Una variable", "Varias variables (2-5)", "Muchas variables (>5)"],
+        "respuestas": [
+            "Use resúmenes simples: medias, gráficos, frecuencias.",
+            "Depende del objetivo (ver siguiente pregunta)",
+            "Simplifique con PCA, análisis factorial o agrupación."
+        ]
+    },
+    {
+        "pregunta": "2. ¿Cuál es tu objetivo estadístico?",
+        "opciones": ["Describir", "Comparar", "Clasificar", "Predecir", "Explicar", "Relacionar"],
+        "respuestas": [
+            "Usa promedios, gráficos o tablas.",
+            "Pruebe las pruebas t o ANOVA.",
+            "Utilice árboles de regresión logística o de decisión.",
+            "Opta por modelos de regresión o de series temporales.",
+            "Utilice regresión múltiple o análisis de rutas.",
+            "Mide correlación, asociación o covariación entre variables."
+        ]
+    },
+    {
+        "pregunta": "3. ¿Con qué tipo de datos está tratando?",
+        "opciones": ["Nominal (categorías)", "Ordinal (clasificado/rangos)", "Continuo (numérico)"],
+        "respuestas": [
+            "Chi-cuadrado o regresión logística.",
+            "Pruebas no paramétricas o regresión ordinal.",
+            "Pruebas t, ANOVA, correlación, regresión."
+        ]
+    },
+    {
+        "pregunta": "4. ¿Existen variables dependientes e independientes?",
+        "opciones": ["Sí", "No"],
+        "respuestas": [
+            "Modelarlos: regresión, ANOVA, clasificación.",
+            "Explorar: utilice correlación, PCA o agrupación en clústeres."
+        ]
+    },
+    {
+        "pregunta": "5. ¿Sus observaciones están vinculadas por tiempo o lugar?",
+        "opciones": ["Con el tiempo (series temporales)", "Por ubicación (datos espaciales)", "Por secuencia"],
+        "respuestas": [
+            "Utilice herramientas de series temporales como ARIMA.",
+            "Utilice el análisis espacial.",
+            "Verifique si hay deriva o sesgo."
+        ]
+    }
+]
+
+# ============================================================================
+# FUNCIÓN: OBTENER PRUEBAS RECOMENDADAS
+# ============================================================================
+
+def obtener_pruebas_recomendadas(respuestas_indices):
+    """
+    Basado en respuestas, recomienda pruebas estadísticas
+    """
+    
+    pruebas = {
+        "titulo": "📊 PRUEBAS ESTADÍSTICAS RECOMENDADAS",
+        "metodos": []
+    }
+    
+    num_variables = respuestas_indices[0] if len(respuestas_indices) > 0 else 0
+    objetivo = respuestas_indices[1] if len(respuestas_indices) > 1 else 0
+    tipo_datos = respuestas_indices[2] if len(respuestas_indices) > 2 else 0
+    variables_dep = respuestas_indices[3] if len(respuestas_indices) > 3 else 0
+    autocorr = respuestas_indices[4] if len(respuestas_indices) > 4 else 0
+    
+    # ========== OBJETIVO 0: DESCRIBIR ==========
+    if objetivo == 0:
+        if tipo_datos == 0:  # NOMINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Tabla de Frecuencias", "desc": "Cuenta y proporciones de categorías", "uso": "Resumir variables categóricas"},
+                {"nombre": "Gráfico de Barras", "desc": "Visualización de frecuencias", "uso": "Ver proporción de cada categoría"}
+            ])
+        elif tipo_datos == 1:  # ORDINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Tabla de Frecuencias Ordenada", "desc": "Frecuencias respetando orden", "uso": "Describir datos ordinales"},
+                {"nombre": "Mediana y Cuartiles", "desc": "Posición central en datos ordenados", "uso": "Resumir tendencia central"}
+            ])
+        elif tipo_datos == 2:  # CONTINUO
+            pruebas["metodos"].extend([
+                {"nombre": "Media, Desv.Est, Rango, Cuartiles", "desc": "Resumen distribución numérica", "uso": "Estadística descriptiva completa"},
+                {"nombre": "Shapiro-Wilk Test", "desc": "Verifica normalidad", "uso": "Determinar pruebas paramétricas"},
+                {"nombre": "Histograma + Densidad", "desc": "Visualización distribución", "uso": "Ver forma de datos"}
+            ])
+    
+    # ========== OBJETIVO 1: COMPARAR ==========
+    elif objetivo == 1:
+        if tipo_datos == 0:  # NOMINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Chi-Cuadrado", "desc": "Test de independencia categórica", "uso": "Comparar distribuciones de categorías", "supuesto": "Frecuencias > 5"},
+                {"nombre": "Test Exacto de Fisher", "desc": "Alternativa muestras pequeñas", "uso": "Si frecuencias < 5"}
+            ])
+        elif tipo_datos == 1:  # ORDINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Mann-Whitney U (2 grupos)", "desc": "No-paramétrica", "uso": "2 grupos ordinales"},
+                {"nombre": "Kruskal-Wallis (3+ grupos)", "desc": "No-paramétrica multiple", "uso": "3+ grupos ordinales"}
+            ])
+        elif tipo_datos == 2:  # CONTINUO
+            pruebas["metodos"].extend([
+                {"nombre": "T-test (2 grupos)", "desc": "Compara medias", "uso": "2 grupos continuos", "supuesto": "Normalidad"},
+                {"nombre": "ANOVA (3+ grupos)", "desc": "Compara múltiples", "uso": "3+ grupos", "supuesto": "Normalidad"},
+                {"nombre": "Kruskal-Wallis", "desc": "No-paramétrica", "uso": "Si no hay normalidad"}
+            ])
+    
+    # ========== OBJETIVO 2: CLASIFICAR ==========
+    elif objetivo == 2:
+        pruebas["metodos"].extend([
+            {"nombre": "Regresión Logística", "desc": "Categoría binaria/multinomial", "uso": "Predicción de clases"},
+            {"nombre": "Árbol de Decisión", "desc": "Reglas recursivas", "uso": "Interpretabilidad alta"},
+            {"nombre": "Random Forest", "desc": "Múltiples árboles", "uso": "Mayor precisión"},
+            {"nombre": "SVM", "desc": "Máquinas vectores soporte", "uso": "Límites no-lineales"}
+        ])
+    
+    # ========== OBJETIVO 3: PREDECIR ==========
+    elif objetivo == 3:
+        if tipo_datos == 2:  # CONTINUO
+            pruebas["metodos"].extend([
+                {"nombre": "Regresión Lineal Simple", "desc": "1 predictor", "uso": "Relación lineal simple"},
+                {"nombre": "Regresión Lineal Múltiple", "desc": "Múltiples predictores", "uso": "Relación lineal compleja", "supuesto": "No multicolinealidad"},
+                {"nombre": "Regresión Polinomial", "desc": "Relación curvilínea", "uso": "No-lineal"},
+                {"nombre": "ARIMA", "desc": "Series temporales", "uso": "Datos autocorrelacionados"}
+            ])
+    
+    # ========== OBJETIVO 4: EXPLICAR ==========
+    elif objetivo == 4:
+        pruebas["metodos"].extend([
+            {"nombre": "Regresión Múltiple", "desc": "Efecto de predictores", "uso": "Explicar causalidad", "supuesto": "No multicolinealidad (VIF<5)"},
+            {"nombre": "Path Analysis", "desc": "Efectos directos e indirectos", "uso": "Mecanismos causales"},
+            {"nombre": "Análisis de Mediación", "desc": "Variables mediadoras", "uso": "Efecto indirecto"}
+        ])
+    
+    # ========== OBJETIVO 5: RELACIONAR ⭐ ==========
+    elif objetivo == 5:
+        if tipo_datos == 0:  # NOMINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Chi-Cuadrado", "desc": "Independencia entre categorías", "uso": "Asociación nominal", "supuesto": "Frecuencias > 5"},
+                {"nombre": "Cramér's V", "desc": "Intensidad de asociación", "uso": "Medir fuerza (0-1)"},
+                {"nombre": "Análisis de Correspondencia", "desc": "Visualización de patrones", "uso": "Gráfico de asociaciones"}
+            ])
+        elif tipo_datos == 1:  # ORDINAL
+            pruebas["metodos"].extend([
+                {"nombre": "Correlación de Spearman", "desc": "Asociación ordinal", "uso": "Variables ordenadas", "supuesto": "Monotonicidad"},
+                {"nombre": "Correlación Kendall Tau", "desc": "Basada en rangos", "uso": "Muestras pequeñas"},
+                {"nombre": "Goodman-Kruskal Gamma", "desc": "Con empates", "uso": "Muchos empates en rangos"}
+            ])
+        elif tipo_datos == 2:  # CONTINUO
+            pruebas["metodos"].extend([
+                {"nombre": "Correlación de Pearson", "desc": "Asociación lineal", "uso": "Variables continuas", "supuesto": "Normalidad, linealidad"},
+                {"nombre": "Scatter Plot", "desc": "Visualización gráfica", "uso": "Inspeccionar relación primero"},
+                {"nombre": "Matriz de Correlación", "desc": "Correlaciones múltiples", "uso": "Todas las relaciones a la vez"},
+                {"nombre": "Correlación Parcial", "desc": "Controlando terceras variables", "uso": "Aislar efecto de confusores"}
+            ])
+        pruebas["metodos"].append({
+            "nombre": "⚠️ RECUERDA", 
+            "desc": "¡Correlación ≠ Causalidad!", 
+            "uso": "Asociación NO implica causa-efecto"
+        })
+    
+    # ========== MUCHAS VARIABLES ==========
+    if num_variables == 2:
+        pruebas["metodos"].insert(0, {
+            "nombre": "PCA", 
+            "desc": "Reduce dimensionalidad", 
+            "uso": "Simplificar muchas variables"
+        })
+    
+    # ========== AUTOCORRELACIÓN TEMPORAL ==========
+    if autocorr == 0 and objetivo == 3:
+        pruebas["metodos"].extend([
+            {"nombre": "Durbin-Watson Test", "desc": "Detecta autocorrelación", "uso": "Verificar independencia"},
+            {"nombre": "ARIMA", "desc": "Series temporales", "uso": "Autocorrelación temporal"}
+        ])
+    
+    return pruebas
+
+# ============================================================================
+# ESTADO DEL ASISTENTE
+# ============================================================================
+
+state = {
+    "pregunta_actual": 0,
+    "respuestas_usuario": [],
+    "respuestas_indices": []
+}
+
+def get_mensaje_actual():
+    if state["pregunta_actual"] >= len(preguntas):
+        # MOSTRAR RESULTADO FINAL
+        mensaje = "🎉 ¡COMPLETASTE EL CUESTIONARIO!\n\n"
+        mensaje += "=" * 70 + "\n"
+        mensaje += "📋 TUS RESPUESTAS:\n"
+        mensaje += "=" * 70 + "\n\n"
+        
+        for i, (preg, resp) in enumerate(zip(preguntas, state["respuestas_usuario"]), 1):
+            mensaje += f"**{i}. {preg['pregunta']}**\n"
+            mensaje += f"   → {resp}\n\n"
+        
+        # PRUEBAS RECOMENDADAS
+        pruebas = obtener_pruebas_recomendadas(state["respuestas_indices"])
+        
+        mensaje += "=" * 70 + "\n"
+        mensaje += f"📊 {pruebas['titulo']}\n"
+        mensaje += "=" * 70 + "\n\n"
+        
+        for idx, metodo in enumerate(pruebas["metodos"], 1):
+            mensaje += f"**{idx}. {metodo['nombre']}**\n"
+            mensaje += f"   📝 {metodo['desc']}\n"
+            mensaje += f"   💡 {metodo['uso']}\n"
+            if "supuesto" in metodo:
+                mensaje += f"   ⚠️ {metodo['supuesto']}\n"
+            mensaje += "\n"
+        
+        return mensaje
+    
+    preg_actual = preguntas[state["pregunta_actual"]]
+    numero = state["pregunta_actual"] + 1
+    total = len(preguntas)
+    
+    mensaje = f"**Pregunta {numero} de {total}**\n\n"
+    mensaje += f"**{preg_actual['pregunta']}**\n\n"
+    
+    for idx, opcion in enumerate(preg_actual['opciones'], 1):
+        mensaje += f"{idx}. {opcion}\n"
+    
+    mensaje += f"\n📝 *Escribe el número (1-{len(preg_actual['opciones'])})*"
+    
+    return mensaje
+
+def reiniciar_asistente():
+    """Reinicia el asistente a su estado inicial"""
+    state["pregunta_actual"] = 0
+    state["respuestas_usuario"] = []
+    state["respuestas_indices"] = []
+    historia_nueva = [(None, get_mensaje_actual())]
+    return historia_nueva, ""
+
+def procesar_respuesta(user_input, history):
+    if not user_input or user_input.strip() == "":
+        return history, ""
+    
+    user_input = user_input.strip()
+    
+    if state["pregunta_actual"] >= len(preguntas):
+        history = history + [(user_input, "✅ Ya completaste. Haz clic en 'Reiniciar' para empezar de nuevo.")]
+        return history, ""
+    
+    preg_actual = preguntas[state["pregunta_actual"]]
+    
+    try:
+        num_respuesta = int(user_input) - 1
+        if num_respuesta < 0 or num_respuesta >= len(preg_actual['opciones']):
+            raise ValueError
+    except:
+        history = history + [(user_input, f"❌ Número inválido. Escribe entre 1 y {len(preg_actual['opciones'])}")]
+        return history, ""
+    
+    opcion_elegida = preg_actual['opciones'][num_respuesta]
+    respuesta_metodo = preg_actual['respuestas'][num_respuesta]
+    
+    state["respuestas_usuario"].append(opcion_elegida)
+    state["respuestas_indices"].append(num_respuesta)
+    
+    respuesta_chat = f"✅ **Opción:** {opcion_elegida}\n\n"
+    respuesta_chat += f"📊 **Recomendación:** {respuesta_metodo}\n\n"
+    
+    state["pregunta_actual"] += 1
+    
+    history = history + [(user_input, respuesta_chat)]
+    
+    siguiente = get_mensaje_actual()
+    history = history + [("", siguiente)]
+    
+    return history, ""
+
+# ============================================================================
+# INTERFAZ GRADIO
+# ============================================================================
+
+with gr.Blocks(title="📊 Asistente Estadístico") as demo:
+    
+    gr.Markdown("""
+    # 📊 ASISTENTE DE DECISIÓN ESTADÍSTICA
+    
+    ### Responde 5 preguntas → Obtén recomendaciones de pruebas estadísticas
+    
+    ✅ **Todo embebido en el código - Sin archivos externos**
+    """)
+    
+    chatbot = gr.Chatbot(label="💬 Chat", height=600)
+    txt_input = gr.Textbox(label="Tu respuesta", placeholder="Escribe un número (1, 2, 3...)")
+    
+    with gr.Row():
+        btn_send = gr.Button("📤 Enviar", variant="primary")
+        btn_reiniciar = gr.Button("🔄 Reiniciar", variant="secondary")
+    
+    def enviar(message, history):
+        return procesar_respuesta(message, history)
+    
+    btn_send.click(
+        enviar,
+        inputs=[txt_input, chatbot],
+        outputs=[chatbot, txt_input]
+    )
+    
+    txt_input.submit(
+        enviar,
+        inputs=[txt_input, chatbot],
+        outputs=[chatbot, txt_input]
+    )
+    
+    btn_reiniciar.click(
+        reiniciar_asistente,
+        inputs=[],
+        outputs=[chatbot, txt_input]
+    )
+    
+    def iniciar(history):
+        return [(None, get_mensaje_actual())]
+    
+    demo.load(iniciar, inputs=[], outputs=[chatbot])
+
+print("\n" + "=" * 70)
+print("🚀 ASISTENTE LANZADO")
+print("=" * 70)
+
+demo.launch(share=True)
