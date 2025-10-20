@@ -1,0 +1,168 @@
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+wb = Workbook()
+ws = wb.active
+ws.title = "Árbol Decisión"
+
+header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+header_font = Font(bold=True, color="FFFFFF", size=11)
+header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+opcion_fill = PatternFill(start_color="D9E8F5", end_color="D9E8F5", fill_type="solid")
+opcion_font = Font(bold=True, size=10)
+opcion_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+respuesta_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+respuesta_alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+pregunta_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+pregunta_font = Font(bold=True, size=11)
+pregunta_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+headers = ["Pregunta", "Opción 1", "Respuesta 1", "Opción 2", "Respuesta 2", "Opción 3", "Respuesta 3", "Opción 4", "Respuesta 4", "Opción 5", "Respuesta 5"]
+ws.append(headers)
+
+for cell in ws[1]:
+    cell.fill = header_fill
+    cell.font = header_font
+    cell.alignment = header_alignment
+    cell.border = border
+
+data = [
+    {
+        "Pregunta": "1. ¿Con cuántas variables está trabajando?",
+        "Opción_1": "Una variable",
+        "Respuesta_1": "Use resúmenes simples: medias, gráficos, frecuencias.",
+        "Opción_2": "Varias variables (2-5)",
+        "Respuesta_2": "Depende del objetivo (ver siguiente pregunta)",
+        "Opción_3": "Muchas variables (>5)",
+        "Respuesta_3": "Simplifique con PCA, análisis factorial o agrupación.",
+    },
+    {
+        "Pregunta": "2. ¿Cuál es tu objetivo estadístico?",
+        "Opción_1": "Describir",
+        "Respuesta_1": "Usa promedios, gráficos o tablas.",
+        "Opción_2": "Comparar",
+        "Respuesta_2": "Pruebe las pruebas t o ANOVA.",
+        "Opción_3": "Clasificar",
+        "Respuesta_3": "Utilice árboles de regresión logística o de decisión.",
+        "Opción_4": "Predecir",
+        "Respuesta_4": "Opta por modelos de regresión o de series temporales.",
+        "Opción_5": "Explicar",
+        "Respuesta_5": "Utilice regresión múltiple o análisis de rutas.",
+    },
+    {
+        "Pregunta": "3. ¿Con qué tipo de datos está tratando?",
+        "Opción_1": "Nominal (categorías)",
+        "Respuesta_1": "Chi-cuadrado o regresión logística.",
+        "Opción_2": "Ordinal (clasificado/rangos)",
+        "Respuesta_2": "Pruebas no paramétricas o regresión ordinal.",
+        "Opción_3": "Continuo (numérico)",
+        "Respuesta_3": "Pruebas t, ANOVA, correlación, regresión.",
+    },
+    {
+        "Pregunta": "4. ¿Existen variables dependientes e independientes?",
+        "Opción_1": "Sí",
+        "Respuesta_1": "Modelarlos: regresión, ANOVA, clasificación.",
+        "Opción_2": "No",
+        "Respuesta_2": "Explorar: utilice correlación, PCA o agrupación en clústeres.",
+    },
+    {
+        "Pregunta": "5. ¿Sus observaciones están vinculadas por tiempo o lugar?",
+        "Opción_1": "Con el tiempo (series temporales)",
+        "Respuesta_1": "Utilice herramientas de series temporales como ARIMA.",
+        "Opción_2": "Por ubicación (datos espaciales)",
+        "Respuesta_2": "Utilice el análisis espacial.",
+        "Opción_3": "Por secuencia",
+        "Respuesta_3": "Verifique si hay deriva o sesgo.",
+    },
+]
+
+row_num = 2
+for item in data:
+    row_data = [item.get("Pregunta", "")]
+    for i in range(1, 6):
+        row_data.append(item.get(f"Opción_{i}", ""))
+        row_data.append(item.get(f"Respuesta_{i}", ""))
+    
+    ws.append(row_data)
+    
+    ws[f"A{row_num}"].fill = pregunta_fill
+    ws[f"A{row_num}"].font = pregunta_font
+    ws[f"A{row_num}"].alignment = pregunta_alignment
+    ws[f"A{row_num}"].border = border
+    
+    for col_num in range(2, 12):
+        cell = ws.cell(row=row_num, column=col_num)
+        cell.border = border
+        if (col_num - 2) % 2 == 0:
+            cell.fill = opcion_fill
+            cell.font = opcion_font
+            cell.alignment = opcion_alignment
+        else:
+            cell.fill = respuesta_fill
+            cell.alignment = respuesta_alignment
+    
+    row_num += 1
+
+ws.column_dimensions['A'].width = 35
+for col in ['B', 'D', 'F', 'H', 'J']:
+    ws.column_dimensions[col].width = 25
+for col in ['C', 'E', 'G', 'I', 'K']:
+    ws.column_dimensions[col].width = 40
+
+ws.row_dimensions[1].height = 30
+for i in range(2, row_num):
+    ws.row_dimensions[i].height = 60
+
+ws2 = wb.create_sheet("Métodos Estadísticos")
+
+metodos = [
+    ["Método", "Descripción", "Cuándo usar", "Supuestos"],
+    ["Media/Desv. Estándar", "Medidas de tendencia central y dispersión", "Describir una variable continua", "Datos normales"],
+    ["Histograma/Box plot", "Gráficos descriptivos", "Visualizar distribución", "Ninguno"],
+    ["PCA", "Análisis de Componentes Principales", "Reducir dimensionalidad (muchas variables)", "Datos continuos correlacionados"],
+    ["Análisis Factorial", "Identificar factores latentes", "Simplificar múltiples variables", "Datos continuos, correlación"],
+    ["Clustering", "Agrupar observaciones similares", "Explorar patrones en datos", "Datos estandarizados"],
+    ["T-test", "Comparar 2 grupos", "Comparar medias de 2 grupos independientes", "Normalidad, homocedasticidad"],
+    ["ANOVA", "Comparar 3+ grupos", "Comparar medias de múltiples grupos", "Normalidad, homocedasticidad"],
+    ["Chi-cuadrado", "Test de independencia", "Comparar categorías (datos nominales)", "Frecuencias esperadas > 5"],
+    ["Regresión Logística", "Clasificar en categorías", "Predecir categorías binarias/multinomiales", "Variables independientes linealmente separables"],
+    ["Árbol de Decisión", "Clasificar recursivamente", "Datos complejos, interpretabilidad alta", "Ninguno crítico"],
+    ["SVM", "Máquinas de Vectores de Soporte", "Clasificación con límites no lineales", "Datos normalizados"],
+    ["Regresión Lineal", "Modelar relación lineal", "Predecir variable continua", "Normalidad de residuos"],
+    ["Regresión Polinomial", "Modelar relación curvilínea", "Predecir relación no lineal", "Normalidad de residuos"],
+    ["ARIMA", "Series temporales", "Predecir datos con autocorrelación temporal", "Series estacionaria (o diferenciada)"],
+    ["Correlación de Pearson", "Asociación lineal (continuos)", "Explicar relación entre 2 variables", "Normalidad, relación lineal"],
+    ["Correlación de Spearman", "Asociación (ordinales/no-normales)", "Explicar relación no-lineal", "Monotonicidad"],
+    ["Regresión Múltiple", "Explicar con múltiples predictores", "Entender efecto de variables independientes", "Normalidad, linealidad, no multicolinealidad"],
+    ["Path Analysis", "Efectos directos e indirectos", "Analizar mecanismos causales", "Linealidad, teoría a priori"],
+]
+
+for row_idx, row_data in enumerate(metodos, 1):
+    for col_idx, value in enumerate(row_data, 1):
+        cell = ws2.cell(row=row_idx, column=col_idx)
+        cell.value = value
+        cell.border = border
+        cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+        if row_idx == 1:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+ws2.column_dimensions['A'].width = 25
+ws2.column_dimensions['B'].width = 35
+ws2.column_dimensions['C'].width = 40
+ws2.column_dimensions['D'].width = 35
+for i in range(1, len(metodos) + 1):
+    ws2.row_dimensions[i].height = 40
+
+wb.save("flow_estadistica_completo.xlsx")
+
+print("✅ EXCEL CREADO")
+print("📄 Archivo: flow_estadistica_completo.xlsx")
+print("✨ ¡Ya puedes descargarlo!")
