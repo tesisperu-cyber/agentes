@@ -1,0 +1,517 @@
+"""
+Sistema Completo de Planificación Financiera con CrewAI
+Para Google Colab - Usando OpenAI (gpt-4o-mini)
+Código 100% funcional y corregido
+"""
+
+# ============================================================================
+# PASO 1: INSTALACIÓN (Ejecuta esto primero en Colab)
+# ============================================================================
+# !pip install crewai crewai-tools langchain-openai
+
+# ============================================================================
+# PASO 2: CONFIGURAR API KEY
+# ============================================================================
+import os
+from google.colab import userdata
+
+# Opción A: Usar Colab Secrets (Recomendado)
+# 1. Click en 🔑 (llave) en el panel izquierdo de Colab
+# 2. Agregar nuevo secret: OPENAI_API_KEY = tu-clave-aqui
+# 3. Descomentar la siguiente línea:
+# os.environ["OPENAI_API_KEY"] = userdata.get('OPENAI_API_KEY')
+
+# Opción B: Escribir directamente (NO recomendado para compartir notebooks)
+os.environ["OPENAI_API_KEY"] = "sk-tu-clave-aqui"  # REEMPLAZA CON TU CLAVE
+
+# ============================================================================
+# PASO 3: IMPORTS
+# ============================================================================
+from crewai import Agent, Task, Crew, Process
+from langchain_openai import ChatOpenAI
+from datetime import datetime
+import json
+
+# ============================================================================
+# PASO 4: CONFIGURACIÓN DEL MODELO
+# ============================================================================
+
+# Inicializar el modelo LLM
+llm = ChatOpenAI(
+    model="gpt-4o-mini",  # Puedes cambiar a "gpt-4o" para mejor calidad
+    temperature=0.7
+)
+
+print("✅ Modelo LLM inicializado correctamente")
+
+# ============================================================================
+# PASO 5: PROCESAMIENTO DE DATOS FINANCIEROS
+# ============================================================================
+
+class FinancialDataProcessor:
+    """Procesa y calcula métricas financieras"""
+    
+    @staticmethod
+    def calculate_metrics(financial_data):
+        """Calcula métricas clave"""
+        income = financial_data.get("income", 0)
+        expenses = financial_data.get("expenses", {})
+        debts = financial_data.get("debts", {})
+        
+        total_expenses = sum(expenses.values())
+        total_debt = sum(debt.get("balance", 0) for debt in debts.values())
+        
+        # Calcular pagos mínimos de deuda
+        total_min_payments = 0
+        for debt_info in debts.values():
+            balance = debt_info.get("balance", 0)
+            rate = debt_info.get("interest_rate", 0)
+            min_payment = max(balance * 0.02, balance * rate / 12)
+            total_min_payments += min_payment
+        
+        net_income = income - total_expenses - total_min_payments
+        savings_rate = (net_income / income * 100) if income > 0 else 0
+        
+        return {
+            "total_expenses": total_expenses,
+            "total_debt": total_debt,
+            "total_min_payments": total_min_payments,
+            "net_income": net_income,
+            "savings_rate": savings_rate,
+            "debt_to_income": (total_min_payments / income * 100) if income > 0 else 0
+        }
+    
+    @staticmethod
+    def format_summary(financial_data, metrics):
+        """Formatea resumen para los agentes"""
+        income = financial_data.get("income", 0)
+        expenses = financial_data.get("expenses", {})
+        debts = financial_data.get("debts", {})
+        
+        summary = f"""
+╔═══════════════════════════════════════════════════════════╗
+║           PERFIL FINANCIERO - ANÁLISIS DETALLADO          ║
+╚═══════════════════════════════════════════════════════════╝
+
+💰 INGRESOS:
+   Ingreso Mensual: ${income:,.2f}
+
+📊 GASTOS:
+"""
+        for category, amount in sorted(expenses.items()):
+            percentage = (amount / income * 100) if income > 0 else 0
+            summary += f"   • {category.title()}: ${amount:,.2f} ({percentage:.1f}% del ingreso)\n"
+        
+        summary += f"\n   TOTAL GASTOS: ${metrics['total_expenses']:,.2f}\n"
+        
+        if debts:
+            summary += "\n💳 DEUDAS:\n"
+            for debt_name, debt_info in debts.items():
+                balance = debt_info.get("balance", 0)
+                rate = debt_info.get("interest_rate", 0)
+                status = "🔥" if rate > 0.15 else "⚠️" if rate > 0.08 else "✓"
+                summary += f"   {status} {debt_name.replace('_', ' ').title()}:\n"
+                summary += f"      • Saldo: ${balance:,.2f}\n"
+                summary += f"      • Tasa de Interés: {rate*100:.2f}% APR\n"
+            
+            summary += f"\n   DEUDA TOTAL: ${metrics['total_debt']:,.2f}\n"
+        
+        summary += f"""
+📈 MÉTRICAS CLAVE:
+   • Ingreso Neto Disponible: ${metrics['net_income']:,.2f}/mes
+   • Tasa de Ahorro Actual: {metrics['savings_rate']:.1f}%
+   • Ratio Deuda-Ingreso: {metrics['debt_to_income']:.1f}%
+   • Meta de Ahorro: ${financial_data.get('savings_goal', 0):,.2f}/mes
+"""
+        return summary
+
+# ============================================================================
+# PASO 6: DEFINICIÓN DE AGENTES
+# ============================================================================
+
+# Agente 1: Asesor de Presupuesto
+budgeting_agent = Agent(
+    role="Asesor de Presupuesto Senior",
+    goal="Crear presupuestos mensuales optimizados que maximicen el ahorro del usuario",
+    backstory=(
+        "Eres un asesor financiero certificado (CFP) con 15+ años de experiencia "
+        "ayudando a personas a optimizar sus finanzas personales. Especializas en "
+        "la regla 50/30/20 y presupuestos de base cero. SIEMPRE proporcionas "
+        "cantidades ESPECÍFICAS en dólares y porcentajes en tus recomendaciones."
+    ),
+    allow_delegation=False,
+    verbose=True,
+    llm=llm
+)
+
+# Agente 2: Asesor de Inversiones
+investment_agent = Agent(
+    role="Asesor de Inversiones Certificado (CFA)",
+    goal="Diseñar estrategias de inversión personalizadas que maximicen la riqueza a largo plazo",
+    backstory=(
+        "Eres un analista financiero certificado (CFA) con experiencia en teoría "
+        "moderna de carteras y asignación de activos. Entiendes acciones, bonos, "
+        "ETFs y fondos mutuos. Consideras la edad del cliente, tolerancia al riesgo "
+        "y horizonte temporal. SIEMPRE proporcionas porcentajes específicos de "
+        "asignación y recomiendas vehículos de inversión reales con símbolos ticker."
+    ),
+    allow_delegation=False,
+    verbose=True,
+    llm=llm
+)
+
+# Agente 3: Especialista en Gestión de Deudas
+debt_management_agent = Agent(
+    role="Especialista en Eliminación de Deudas",
+    goal="Crear estrategias de pago que minimicen intereses y aceleren la libertad financiera",
+    backstory=(
+        "Eres un consejero de crédito certificado con amplia experiencia en los "
+        "métodos Avalancha (Avalanche) y Bola de Nieve (Snowball). Has ayudado "
+        "a clientes a eliminar millones en deudas mediante planes estratégicos. "
+        "SIEMPRE proporcionas cronogramas de pago detallados con montos mensuales "
+        "específicos, fechas de liquidación y cálculos de ahorro de intereses."
+    ),
+    allow_delegation=False,
+    verbose=True,
+    llm=llm
+)
+
+print("✅ Agentes creados exitosamente")
+
+# ============================================================================
+# PASO 7: DEFINICIÓN DE TAREAS
+# ============================================================================
+
+def create_tasks(financial_data, metrics):
+    """Crea las tareas para los agentes"""
+    
+    summary = FinancialDataProcessor.format_summary(financial_data, metrics)
+    
+    # Calcular asignaciones inteligentes
+    net_income = metrics['net_income']
+    income = financial_data.get("income", 0)
+    emergency_fund = financial_data.get("emergency_fund", 0)
+    emergency_target = income * 6
+    
+    # Lógica de asignación inteligente
+    if emergency_fund < emergency_target * 0.5:
+        to_emergency = net_income * 0.5
+        to_debt = net_income * 0.3
+        to_investment = net_income * 0.2
+    elif any(debt.get("interest_rate", 0) > 0.15 
+             for debt in financial_data.get("debts", {}).values()):
+        to_emergency = net_income * 0.2
+        to_debt = net_income * 0.6
+        to_investment = net_income * 0.2
+    else:
+        to_emergency = net_income * 0.2
+        to_debt = net_income * 0.3
+        to_investment = net_income * 0.5
+    
+    # Tarea 1: Presupuesto
+    budgeting_task = Task(
+        description=f"""
+{summary}
+
+TU MISIÓN: Crear un análisis completo de presupuesto mensual.
+
+ANÁLISIS REQUERIDO:
+1. Evaluación de Gastos Actuales:
+   - Identifica categorías que exceden porcentajes recomendados
+   - Calcula real vs. ideal en cada categoría con montos exactos
+   
+2. Plan de Optimización de Presupuesto:
+   - Recomienda ajustes específicos en dólares para cada categoría
+   - Muestra comparación antes/después
+   - Calcula nueva tasa de ahorro proyectada
+
+3. Recomendaciones Accionables (proporciona 5-7 acciones específicas):
+   - Dónde recortar gastos (con montos exactos)
+   - Cómo aumentar ahorros
+   - Estrategias de optimización
+   - Ganancias rápidas (oportunidades de ahorro fácil)
+
+4. Aceleración de Ahorros:
+   - Muestra camino para alcanzar 20% de tasa de ahorro
+   - Calcula tiempo para construir fondo de emergencia de 6 meses
+   - Proporciona metas mensuales de ahorro
+
+FORMATO: Usa secciones claras con encabezados, puntos y tablas.
+Incluye TODOS los montos en dólares y porcentajes.
+Sé específico y accionable - nada de consejos genéricos.
+""",
+        expected_output=(
+            "Análisis completo de presupuesto con: (1) Desglose de gastos actuales "
+            "con indicadores sobre/bajo presupuesto, (2) Recomendaciones específicas "
+            "con montos exactos, (3) 5-7 pasos accionables, (4) Comparación antes/después "
+            "de ahorros, (5) Cronología hacia metas financieras"
+        ),
+        agent=budgeting_agent
+    )
+    
+    # Tarea 2: Inversiones
+    investment_task = Task(
+        description=f"""
+{summary}
+
+DISPONIBLE PARA INVERSIÓN MENSUAL: ${to_investment:,.2f}
+
+TU MISIÓN: Diseñar una estrategia completa de inversión.
+
+ANÁLISIS REQUERIDO:
+1. Estrategia de Asignación de Activos:
+   - Recomienda porcentajes específicos: Acciones, Bonos, Bienes Raíces, Efectivo
+   - Explica justificación basada en el perfil
+   - Considera edad, tolerancia al riesgo y horizonte temporal
+
+2. Recomendaciones Específicas de Inversión:
+   - Nombra vehículos de inversión reales (con símbolos ticker)
+   - Incluye: Fondos índice, ETFs, Fondos de fecha objetivo
+   - Proporciona 3-5 opciones de inversión específicas con porcentajes exactos
+
+3. Priorización de Cuentas:
+   - Estrategia de contribución 401(k) (especialmente si hay match del empleador)
+   - Recomendación Roth IRA vs IRA Tradicional
+   - Estrategia de cuenta imponible
+   - Da montos específicos en dólares para cada tipo de cuenta
+
+4. Proyecciones de Crecimiento:
+   - Muestra valor proyectado de cartera a 10, 20 y 30 años
+   - Usa estimaciones conservadoras de retorno (6-8% dependiendo de asignación)
+   - Muestra impacto de aumentar inversión en $100, $250, $500/mes
+
+5. Evaluación de Riesgo:
+   - Nivel general de riesgo de cartera
+   - Expectativas de volatilidad
+   - Análisis de diversificación
+
+6. Pasos de Acción:
+   - Lista numerada de qué hacer primero, segundo, tercero, etc.
+   - Incluye dónde abrir cuentas si es necesario
+   - Recomendación de frecuencia de rebalanceo
+
+FORMATO: Comienza con tabla resumen de asignación de activos.
+Lista inversiones específicas con porcentajes.
+Muestra proyecciones de crecimiento en formato claro.
+Termina con checklist de acción priorizada.
+""",
+        expected_output=(
+            "Plan completo de inversión con: (1) Asignación de activos con porcentajes "
+            "específicos, (2) 3-5 vehículos de inversión recomendados con símbolos "
+            "ticker, (3) Priorización de cuentas con montos en dólares, (4) Proyecciones "
+            "de crecimiento para 10/20/30 años, (5) Evaluación de riesgos, (6) Plan de "
+            "acción paso a paso"
+        ),
+        agent=investment_agent
+    )
+    
+    # Tarea 3: Gestión de Deudas
+    debt_management_task = Task(
+        description=f"""
+{summary}
+
+DISPONIBLE PARA PAGOS EXTRA DE DEUDA: ${to_debt:,.2f}/mes
+
+TU MISIÓN: Crear una estrategia completa de eliminación de deudas.
+
+ANÁLISIS REQUERIDO:
+1. Priorización de Deudas:
+   - Clasifica TODAS las deudas usando método Avalancha (interés más alto primero)
+   - También muestra clasificación con método Bola de Nieve (saldo más bajo primero)
+   - RECOMIENDA qué método es mejor para este usuario específico y por qué
+
+2. Cronograma Detallado de Pagos:
+   - Para CADA deuda, muestra:
+     * Pago mensual actual (mínimo)
+     * Pago mensual recomendado (con asignación extra)
+     * Fecha de liquidación con pago actual vs. acelerado
+     * Interés total pagado con pago actual vs. acelerado
+   - Crea secuencia de liquidación mes a mes
+
+3. Cálculo de Ahorro de Intereses:
+   - Calcula interés total con solo pagos mínimos actuales
+   - Calcula interés total con pagos acelerados recomendados
+   - Muestra ahorro total (diferencia)
+   - Muestra ahorro de tiempo (meses antes libre de deudas)
+
+4. Cronología de Libertad de Deudas:
+   - Mes/año específico cuando cada deuda será liquidada
+   - Fecha general de libertad de deudas
+   - Hitos de celebración (cada deuda pagada)
+
+5. Recomendaciones Estratégicas (proporciona 4-6 acciones específicas):
+   - Oportunidades de transferencia de saldo (tarjetas 0% APR)
+   - Análisis de consolidación de deudas
+   - Tácticas de negociación de tasas de interés (guion exacto a usar)
+   - Consejos para mejorar puntaje de crédito
+   - Estrategias para prevenir nueva deuda
+
+6. Impacto en Presupuesto Mensual:
+   - Muestra cómo mejora el flujo de efectivo mensual conforme se eliminan deudas
+   - Proyecta a dónde debe ir ese dinero liberado (ahorros vs. inversión)
+
+FORMATO: Crea tabla clara de cronograma de pagos.
+Muestra todos los cálculos de ahorro de intereses.
+Proporciona plan de acción priorizado con pasos específicos.
+Incluye cronología de celebración de libertad de deudas.
+""",
+        expected_output=(
+            "Plan completo de eliminación de deudas con: (1) Clasificación de deudas "
+            "priorizada con recomendación de método, (2) Cronograma detallado de pagos "
+            "para cada deuda con montos exactos, (3) Cálculo de ahorro de intereses "
+            "mostrando total ahorrado, (4) Cronología de libertad de deudas con fechas "
+            "específicas, (5) 4-6 recomendaciones estratégicas incluyendo transferencias "
+            "de saldo y tácticas de negociación, (6) Proyección de flujo de efectivo "
+            "después de eliminación de deudas"
+        ),
+        agent=debt_management_agent
+    )
+    
+    return [budgeting_task, investment_task, debt_management_task]
+
+# ============================================================================
+# PASO 8: CREAR CREW
+# ============================================================================
+
+def create_financial_crew(financial_data):
+    """Crea y ejecuta el crew de planificación financiera"""
+    
+    # Calcular métricas
+    processor = FinancialDataProcessor()
+    metrics = processor.calculate_metrics(financial_data)
+    
+    # Crear tareas
+    tasks = create_tasks(financial_data, metrics)
+    
+    # Crear crew
+    crew = Crew(
+        agents=[budgeting_agent, investment_agent, debt_management_agent],
+        tasks=tasks,
+        process=Process.sequential,
+        verbose=True
+    )
+    
+    return crew, metrics
+
+# ============================================================================
+# PASO 9: DATOS FINANCIEROS DEL USUARIO
+# ============================================================================
+
+user_financial_data = {
+    "income": 5000,
+    "expenses": {
+        "rent": 1500,
+        "utilities": 300,
+        "groceries": 400,
+        "transportation": 200,
+        "entertainment": 150,
+        "other": 450
+    },
+    "debts": {
+        "credit_card": {
+            "balance": 2000,
+            "interest_rate": 0.18  # 18% APR
+        },
+        "student_loan": {
+            "balance": 15000,
+            "interest_rate": 0.045  # 4.5% APR
+        }
+    },
+    "savings_goal": 500,
+    "emergency_fund": 1000  # Fondo de emergencia actual
+}
+
+# ============================================================================
+# PASO 10: EJECUTAR ANÁLISIS
+# ============================================================================
+
+print("""
+╔═══════════════════════════════════════════════════════════════╗
+║     SISTEMA DE PLANIFICACIÓN FINANCIERA CON CREWAI           ║
+║                                                               ║
+║  Tres agentes de IA expertos trabajando juntos:              ║
+║  💰 Asesor de Presupuesto                                    ║
+║  📈 Asesor de Inversiones (CFA)                              ║
+║  💳 Especialista en Gestión de Deudas                        ║
+╚═══════════════════════════════════════════════════════════════╝
+""")
+
+# Crear crew
+crew, metrics = create_financial_crew(user_financial_data)
+
+# Mostrar resumen inicial
+print("\n📊 RESUMEN FINANCIERO INICIAL:")
+print("="*70)
+print(f"   Ingresos mensuales: ${user_financial_data['income']:,.2f}")
+print(f"   Gastos totales: ${metrics['total_expenses']:,.2f}")
+print(f"   Deuda total: ${metrics['total_debt']:,.2f}")
+print(f"   Ingreso neto disponible: ${metrics['net_income']:,.2f}")
+print(f"   Tasa de ahorro actual: {metrics['savings_rate']:.1f}%")
+print(f"   Ratio deuda-ingreso: {metrics['debt_to_income']:.1f}%")
+print("="*70)
+
+# Ejecutar análisis
+print("\n🚀 Iniciando análisis con los tres agentes...")
+print("⏳ Esto puede tomar 30-60 segundos...\n")
+
+try:
+    result = crew.kickoff()
+    
+    # Obtener resultado
+    raw_result = getattr(result, "raw", None) or str(result)
+    
+    # Mostrar resultado final
+    print("\n" + "="*70)
+    print("📋 PLAN FINANCIERO COMPLETO")
+    print("="*70 + "\n")
+    print(raw_result)
+    
+    # Guardar resultado en JSON
+    output = {
+        "timestamp": datetime.now().isoformat(),
+        "user_data": user_financial_data,
+        "metrics": metrics,
+        "plan": raw_result
+    }
+    
+    with open("financial_plan_output.json", "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+    
+    print("\n✅ ¡Análisis completado exitosamente!")
+    print("💾 Resultados guardados en: financial_plan_output.json")
+    
+except Exception as e:
+    print(f"\n❌ Error durante la ejecución: {str(e)}")
+    print("\n💡 Verifica que:")
+    print("1. Tu API key de OpenAI sea válida")
+    print("2. Tengas créditos disponibles en tu cuenta de OpenAI")
+    print("3. La API key tenga los permisos necesarios")
+
+# ============================================================================
+# PASO 11: MOSTRAR RESULTADO EN MARKDOWN (OPCIONAL)
+# ============================================================================
+
+try:
+    from IPython.display import Markdown, display
+    display(Markdown(f"""
+## 🎉 Análisis Financiero Completado
+
+### 📊 Resumen de Métricas
+
+- **Ingreso Mensual**: ${user_financial_data['income']:,.2f}
+- **Gastos Totales**: ${metrics['total_expenses']:,.2f}
+- **Tasa de Ahorro**: {metrics['savings_rate']:.1f}%
+- **Deuda Total**: ${metrics['total_debt']:,.2f}
+
+### 📋 Plan Generado
+
+{raw_result}
+
+---
+
+*Generado el {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}*
+    """))
+except:
+    pass
+
+print("\n🎊 ¡Todo listo! Revisa el plan detallado arriba.")
