@@ -1,0 +1,453 @@
+# 🎬 AGENTE VIRTUAL CONVERSACIONAL CON WAV2LIP + OpenAI TTS
+
+import os
+import sys
+import subprocess
+import shutil
+import numpy as np
+import cv2
+import torch
+from google.colab import files
+import json
+from datetime import datetime
+
+print("="*60)
+print("🤖 AGENTE VIRTUAL CONVERSACIONAL")
+print("="*60)
+print(f"NumPy: {np.__version__}")
+print(f"OpenCV: {cv2.__version__}")
+print(f"Device: {'cuda' if torch.cuda.is_available() else 'cpu'}\n")
+
+# ============================================
+# INSTALAR DEPENDENCIAS
+# ============================================
+print("📦 Instalando dependencias...\n")
+subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'openai'], check=False)
+
+import openai
+
+# ============================================
+# CONFIGURAR API DE OPENAI
+# ============================================
+print("="*60)
+print("🔑 CONFIGURACIÓN DE OPENAI API")
+print("="*60)
+print("Ingresa tu API Key de OpenAI:")
+print("(Obtén una en: https://platform.openai.com/api-keys)\n")
+
+api_key = input("API Key: ").strip()
+
+if not api_key:
+    print("❌ Error: API Key requerida")
+    exit(1)
+
+openai.api_key = api_key
+print("✅ API Key configurada\n")
+
+# ============================================
+# CLONAR WAV2LIP
+# ============================================
+if not os.path.isdir('Wav2Lip'):
+    print("📥 Clonando Wav2Lip...")
+    os.system('git clone -q https://github.com/Rudrabha/Wav2Lip.git')
+
+os.makedirs('Wav2Lip/checkpoints', exist_ok=True)
+os.makedirs('Wav2Lip/face_detection/detection/sfd', exist_ok=True)
+os.makedirs('temp', exist_ok=True)
+os.makedirs('conversation', exist_ok=True)
+
+# ============================================
+# DESCARGAR MODELOS WAV2LIP
+# ============================================
+print("\n📥 Descargando modelos de Wav2Lip...\n")
+
+ckpt = 'Wav2Lip/checkpoints/wav2lip_gan.pth'
+if os.path.exists(ckpt):
+    os.remove(ckpt)
+
+for url in [
+    "https://huggingface.co/spaces/NATSpeech/Wav2Lip/resolve/main/checkpoints/wav2lip_gan.pth",
+    "https://github.com/justinjohn0306/Wav2Lip/releases/download/models/wav2lip_gan.pth"
+]:
+    os.system(f'wget -q --show-progress -O {ckpt} "{url}"')
+    if os.path.exists(ckpt) and os.path.getsize(ckpt) > 100000000:
+        print("✅ Modelo descargado")
+        break
+    elif os.path.exists(ckpt):
+        os.remove(ckpt)
+
+if not os.path.exists(ckpt):
+    print("📤 Sube el modelo manualmente:")
+    up = files.upload()
+    shutil.copy(list(up.keys())[0], ckpt)
+
+s3fd = 'Wav2Lip/face_detection/detection/sfd/s3fd.pth'
+if not os.path.exists(s3fd):
+    os.system(f'wget -q -O {s3fd} "https://www.adrianbulat.com/downloads/python-fan/s3fd-619a316812.pth"')
+
+print("\n✅ Modelos listos\n")
+
+# ============================================
+# PARCHEAR WAV2LIP
+# ============================================
+print("🔧 Aplicando parches...")
+
+patch_numpy2 = """
+import numpy as np
+if not hasattr(np, 'bool'):
+    np.bool = bool
+if not hasattr(np, 'int'):
+    np.int = int
+if not hasattr(np, 'float'):
+    np.float = float
+if not hasattr(np, 'complex'):
+    np.complex = complex
+if not hasattr(np, 'object'):
+    np.object = object
+if not hasattr(np, 'str'):
+    np.str = str
+np.bool8 = np.bool_
+np.int0 = np.intp
+"""
+
+with open('Wav2Lip/numpy2_compat.py', 'w') as f:
+    f.write(patch_numpy2)
+
+with open('Wav2Lip/audio.py', 'r') as f:
+    audio_code = f.read()
+
+if 'import numpy2_compat' not in audio_code:
+    audio_code = "import numpy2_compat\n" + audio_code
+
+try:
+    audio_code = audio_code.replace(
+        "return librosa.filters.mel(hp.sample_rate, hp.n_fft,",
+        "return librosa.filters.mel(sr=hp.sample_rate, n_fft=hp.n_fft,"
+    )
+except:
+    pass
+
+with open('Wav2Lip/audio.py', 'w') as f:
+    f.write(audio_code)
+
+print("✅ Parches OK\n")
+
+# ============================================
+# SUBIR IMAGEN DEL AGENTE
+# ============================================
+print("="*60)
+print("📤 SUBE LA IMAGEN DE TU AGENTE VIRTUAL")
+print("="*60)
+print("💡 Usa una foto de rostro frontal (mujer/hombre)\n")
+
+img_up = files.upload()
+shutil.copy(list(img_up.keys())[0], 'agent_face.jpg')
+
+img = cv2.imread('agent_face.jpg')
+print(f"✅ Agente cargado: {img.shape[1]}x{img.shape[0]}\n")
+
+# ============================================
+# CONFIGURAR AGENTE
+# ============================================
+print("="*60)
+print("⚙️ CONFIGURACIÓN DEL AGENTE")
+print("="*60)
+
+print("\nSelecciona el modelo de OpenAI:")
+print("1. GPT-4 Turbo (más inteligente, más caro)")
+print("2. GPT-4o (equilibrado)")
+print("3. GPT-3.5 Turbo (rápido y económico)")
+model_choice = input("\nElige (1/2/3) [defecto: 2]: ").strip() or "2"
+
+model_map = {
+    "1": "gpt-4-turbo-preview",
+    "2": "gpt-4o",
+    "3": "gpt-3.5-turbo"
+}
+model_name = model_map.get(model_choice, "gpt-4o")
+
+print("\nSelecciona la voz del agente:")
+print("1. alloy (neutral)")
+print("2. echo (masculino)")
+print("3. fable (masculino británico)")
+print("4. onyx (masculino grave)")
+print("5. nova (femenino cálido)")
+print("6. shimmer (femenino suave)")
+voice_choice = input("\nElige (1-6) [defecto: 5]: ").strip() or "5"
+
+voice_map = {
+    "1": "alloy",
+    "2": "echo",
+    "3": "fable",
+    "4": "onyx",
+    "5": "nova",
+    "6": "shimmer"
+}
+voice_name = voice_map.get(voice_choice, "nova")
+
+print("\n📝 Personaliza el agente:")
+agent_name = input("Nombre del agente [defecto: Asistente Virtual]: ").strip() or "Asistente Virtual"
+agent_role = input("Rol/Personalidad [defecto: asistente útil]: ").strip() or "asistente útil y amigable"
+
+print(f"\n✅ Configuración:")
+print(f"   🤖 Modelo: {model_name}")
+print(f"   🗣️  Voz: {voice_name}")
+print(f"   👤 Agente: {agent_name}")
+print(f"   🎭 Rol: {agent_role}\n")
+
+# ============================================
+# SISTEMA DE CONVERSACIÓN
+# ============================================
+
+conversation_history = []
+video_segments = []
+turn_number = 0
+
+system_prompt = f"""Eres {agent_name}, un {agent_role}. 
+Responde de forma conversacional, natural y concisa. 
+Mantén tus respuestas breves (2-4 oraciones) para una conversación fluida.
+Sé amable, profesional y directo."""
+
+def ask_openai(user_message):
+    """Envía mensaje a OpenAI y obtiene respuesta"""
+    conversation_history.append({
+        "role": "user",
+        "content": user_message
+    })
+    
+    try:
+        response = openai.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": system_prompt}
+            ] + conversation_history,
+            max_tokens=150,
+            temperature=0.7
+        )
+        
+        assistant_message = response.choices[0].message.content
+        
+        conversation_history.append({
+            "role": "assistant",
+            "content": assistant_message
+        })
+        
+        return assistant_message
+        
+    except Exception as e:
+        print(f"❌ Error con OpenAI: {e}")
+        return None
+
+def text_to_speech(text, filename):
+    """Convierte texto a voz usando OpenAI TTS"""
+    try:
+        response = openai.audio.speech.create(
+            model="tts-1",
+            voice=voice_name,
+            input=text
+        )
+        
+        response.stream_to_file(filename)
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error en TTS: {e}")
+        return False
+
+def generate_video_segment(audio_file, output_file, turn):
+    """Genera video con Wav2Lip para un segmento"""
+    os.chdir('Wav2Lip')
+    
+    result = subprocess.run([
+        sys.executable, 'inference.py',
+        '--checkpoint_path', 'checkpoints/wav2lip_gan.pth',
+        '--face', '../agent_face.jpg',
+        '--audio', f'../{audio_file}',
+        '--outfile', f'../{output_file}',
+        '--fps', '25',
+        '--pads', '0', '10', '0', '0'
+    ], capture_output=True, text=True)
+    
+    os.chdir('..')
+    
+    return os.path.exists(output_file)
+
+def add_text_overlay(video_file, user_text, agent_text, output_file, turn):
+    """Añade subtítulos al video"""
+    
+    # Escapar comillas y caracteres especiales
+    user_text_safe = user_text.replace("'", "'\\''").replace('"', '\\"').replace('\n', ' ')
+    agent_text_safe = agent_text.replace("'", "'\\''").replace('"', '\\"').replace('\n', ' ')
+    
+    # Crear filtro de texto
+    filter_text = (
+        f"drawtext=text='TÚ\\: {user_text_safe}':fontsize=24:fontcolor=white:"
+        f"box=1:boxcolor=black@0.7:boxborderw=10:x=10:y=10:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf,"
+        f"drawtext=text='{agent_name}\\: {agent_text_safe}':fontsize=24:fontcolor=lightblue:"
+        f"box=1:boxcolor=black@0.7:boxborderw=10:x=10:y=60:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    )
+    
+    subprocess.run([
+        'ffmpeg', '-y', '-loglevel', 'error',
+        '-i', video_file,
+        '-vf', filter_text,
+        '-c:a', 'copy',
+        output_file
+    ], check=False)
+    
+    return os.path.exists(output_file)
+
+# ============================================
+# LOOP DE CONVERSACIÓN
+# ============================================
+
+print("="*60)
+print("💬 CONVERSACIÓN INICIADA")
+print("="*60)
+print(f"🤖 {agent_name} está listo para conversar")
+print("📝 Escribe tus mensajes (escribe 'salir' para terminar)\n")
+
+while True:
+    # Usuario escribe
+    user_input = input("🧑 TÚ: ").strip()
+    
+    if not user_input:
+        print("⚠️ Por favor escribe algo\n")
+        continue
+    
+    if user_input.lower() in ['salir', 'exit', 'quit', 'terminar']:
+        print("\n👋 Finalizando conversación...")
+        break
+    
+    turn_number += 1
+    
+    print(f"\n⏳ Procesando turno {turn_number}...")
+    
+    # 1. Obtener respuesta de OpenAI
+    print("  🤖 Consultando a OpenAI...")
+    agent_response = ask_openai(user_input)
+    
+    if not agent_response:
+        print("  ❌ Error obteniendo respuesta\n")
+        turn_number -= 1
+        continue
+    
+    print(f"\n🤖 {agent_name}: {agent_response}\n")
+    
+    # 2. Convertir respuesta a voz
+    print("  🗣️  Generando voz...")
+    audio_file = f'conversation/turn_{turn_number}_audio.mp3'
+    
+    if not text_to_speech(agent_response, audio_file):
+        print("  ❌ Error generando audio\n")
+        turn_number -= 1
+        continue
+    
+    print("  ✅ Audio generado")
+    
+    # 3. Generar video con Wav2Lip
+    print("  🎬 Sincronizando labios...")
+    video_temp = f'conversation/turn_{turn_number}_temp.mp4'
+    
+    if not generate_video_segment(audio_file, video_temp, turn_number):
+        print("  ❌ Error generando video\n")
+        turn_number -= 1
+        continue
+    
+    print("  ✅ Video sincronizado")
+    
+    # 4. Añadir subtítulos
+    print("  📝 Añadiendo subtítulos...")
+    video_final = f'conversation/turn_{turn_number}_final.mp4'
+    
+    if add_text_overlay(video_temp, user_input, agent_response, video_final, turn_number):
+        video_segments.append(video_final)
+        print(f"  ✅ Turno {turn_number} completado\n")
+    else:
+        video_segments.append(video_temp)
+        print(f"  ⚠️ Sin subtítulos, turno {turn_number} guardado\n")
+
+# ============================================
+# GENERAR VIDEO FINAL
+# ============================================
+
+if len(video_segments) > 0:
+    print("\n" + "="*60)
+    print("🎬 GENERANDO VIDEO FINAL")
+    print("="*60)
+    
+    print(f"\n📊 Turnos de conversación: {len(video_segments)}")
+    print("🔄 Combinando todos los segmentos...\n")
+    
+    # Crear lista de videos para concatenar
+    with open('conversation/video_list.txt', 'w') as f:
+        for video_seg in video_segments:
+            f.write(f"file '../{video_seg}'\n")
+    
+    # Concatenar videos
+    subprocess.run([
+        'ffmpeg', '-y', '-loglevel', 'error',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', 'conversation/video_list.txt',
+        '-c', 'copy',
+        'conversacion_COMPLETA.mp4'
+    ], check=False)
+    
+    # Si falló, intentar recodificar
+    if not os.path.exists('conversacion_COMPLETA.mp4'):
+        print("  🔄 Intentando método alternativo...")
+        subprocess.run([
+            'ffmpeg', '-y', '-loglevel', 'error',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', 'conversation/video_list.txt',
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            'conversacion_COMPLETA.mp4'
+        ], check=False)
+    
+    # Verificar resultado
+    if os.path.exists('conversacion_COMPLETA.mp4'):
+        size = os.path.getsize('conversacion_COMPLETA.mp4') / (1024*1024)
+        
+        print("="*60)
+        print("📥 DESCARGANDO VIDEO FINAL")
+        print("="*60)
+        print(f"\n📊 Tamaño: {size:.1f} MB")
+        print(f"⏱️  Turnos: {len(video_segments)}")
+        
+        files.download('conversacion_COMPLETA.mp4')
+        
+        print("\n🎉 ¡COMPLETADO!")
+        print("\n✅ VIDEO GENERADO CON:")
+        print(f"   🤖 Agente: {agent_name}")
+        print(f"   🗣️  Voz: {voice_name}")
+        print(f"   🧠 Modelo: {model_name}")
+        print(f"   💬 Turnos de conversación: {len(video_segments)}")
+        print(f"   🎬 Sincronización labial perfecta")
+        print(f"   📝 Subtítulos incluidos")
+        
+        # Guardar transcripción
+        print("\n📄 Guardando transcripción...")
+        with open('transcripcion.txt', 'w', encoding='utf-8') as f:
+            f.write(f"CONVERSACIÓN CON {agent_name}\n")
+            f.write(f"{'='*60}\n\n")
+            for i, msg in enumerate(conversation_history):
+                if msg['role'] == 'user':
+                    f.write(f"🧑 TÚ: {msg['content']}\n\n")
+                elif msg['role'] == 'assistant':
+                    f.write(f"🤖 {agent_name}: {msg['content']}\n\n")
+        
+        files.download('transcripcion.txt')
+        print("✅ Transcripción descargada")
+        
+    else:
+        print("\n❌ Error generando video final")
+        print("📁 Segmentos individuales disponibles en: /conversation/")
+else:
+    print("\n⚠️ No hay segmentos de conversación para generar video")
+
+print("\n" + "="*60)
+print("👋 SESIÓN FINALIZADA")
+print("="*60)
