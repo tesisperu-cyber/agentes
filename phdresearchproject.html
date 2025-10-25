@@ -1,0 +1,314 @@
+# ============================================================================
+# PhD RESEARCH SYSTEM - INSTALACIÓN Y EJECUCIÓN COMPLETA
+# ============================================================================
+
+import os
+import subprocess
+import sys
+
+# Verificar si ya se instaló
+if not os.path.exists('/content/.phd_installed'):
+    print("📦 INSTALANDO DEPENDENCIAS (2-3 minutos)...\n")
+    
+    # Desinstalar numpy 2.0 e instalar versión compatible
+    print("🔧 Instalando numpy compatible...")
+    subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "numpy"], 
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "numpy==1.26.4"])
+    
+    # Instalar dependencias principales
+    print("📚 Instalando CrewAI y dependencias...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "crewai==0.41.1"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "crewai-tools==0.8.3"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "langchain==0.2.14"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "langchain-openai==0.1.22"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "langchain-groq==0.1.9"])
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "gradio==4.44.0"])
+    
+    # Marcar como instalado
+    open('/content/.phd_installed', 'w').close()
+    
+    print("\n✅ INSTALACIÓN COMPLETA!")
+    print("\n⚠️  AHORA DEBES HACER ESTO:")
+    print("   1. Runtime → Restart runtime (arriba en el menú)")
+    print("   2. Ejecuta ESTA MISMA celda DE NUEVO\n")
+    
+else:
+    # Ya se instaló, proceder con imports y ejecución
+    print("✅ Dependencias ya instaladas\n")
+    
+    # IMPORTS
+    print("📚 Cargando librerías...")
+    from datetime import datetime
+    from typing import Dict
+    import gradio as gr
+    from crewai import Agent, Task, Crew, Process
+    from langchain_openai import ChatOpenAI
+    from langchain_groq import ChatGroq
+    print("✅ Librerías cargadas\n")
+    
+    # CLASE PHD RESEARCH CREW
+    print("🤖 Creando sistema de 11 agentes...")
+    
+    class PhDResearchCrew:
+        def __init__(self, api_provider: str, api_key: str, model_name: str = None):
+            self.api_provider = api_provider
+            if api_provider == "openai":
+                self.llm = ChatOpenAI(api_key=api_key, model=model_name or "gpt-4-turbo-preview", temperature=0.7)
+            elif api_provider == "groq":
+                self.llm = ChatGroq(api_key=api_key, model=model_name or "llama-3.1-70b-versatile", temperature=0.7)
+        
+        def create_agents(self):
+            self.agents = [
+                Agent(role='Research Problem Specialist', goal='Define research problems and RQs', 
+                      backstory='Expert in identifying research gaps and formulating precise questions',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Literature Review Expert', goal='Conduct comprehensive literature reviews',
+                      backstory='Skilled at analyzing and synthesizing academic literature',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Research Philosophy Advisor', goal='Establish philosophical position',
+                      backstory='Expert in research philosophy and methodological paradigms',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Research Design Architect', goal='Choose research designs',
+                      backstory='Expert in quantitative, qualitative, and mixed methods designs',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Methods Specialist', goal='Select data collection methods',
+                      backstory='Specialist in interviews, surveys, experiments, and observations',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Sampling Expert', goal='Design sampling strategies',
+                      backstory='Expert in sampling with understanding of information power and saturation',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Analysis Strategist', goal='Plan data analysis',
+                      backstory='Skilled in statistical tests, thematic analysis, and software tools',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Quality Specialist', goal='Establish quality criteria',
+                      backstory='Ensures validity, reliability, and trustworthiness in research',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Ethics Advisor', goal='Address ethical considerations',
+                      backstory='Expert in research ethics, consent, and data protection',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Pilot Specialist', goal='Design pilot studies',
+                      backstory='Expert at testing methods and iterating based on feedback',
+                      verbose=True, allow_delegation=False, llm=self.llm),
+                Agent(role='Research Orchestrator', goal='Synthesize complete methodology',
+                      backstory='Senior research advisor coordinating all phases',
+                      verbose=True, allow_delegation=True, llm=self.llm)
+            ]
+        
+        def create_tasks(self, topic: str):
+            descriptions = [
+                f"Analyze the research topic '{topic}'. Identify the research gap, define the problem, and formulate 1-3 specific Research Questions (RQs).",
+                f"Conduct a literature review for '{topic}' focusing on methodological insights from existing research.",
+                "Establish the philosophical position for this research (Positivist/Interpretivist/Critical Realist) with justification.",
+                "Choose the appropriate research design aligned with the RQs and philosophical position.",
+                "Select specific data collection methods (interviews, surveys, experiments, etc.) with justification.",
+                "Design a sampling strategy determining who/what to study, sample size, and rationale.",
+                "Plan the data analysis approach including methods, tools, and framework.",
+                "Establish quality criteria to ensure research rigor (validity, reliability, trustworthiness).",
+                "Address all ethical considerations including consent, confidentiality, and data protection.",
+                "Design a pilot study and refinement strategy to test and improve the methodology.",
+                f"Synthesize all research phases into a comprehensive, coherent PhD research methodology for '{topic}'."
+            ]
+            return [Task(description=d, agent=self.agents[i], expected_output=f"Completed step {i+1}") 
+                   for i, d in enumerate(descriptions)]
+        
+        def run(self, topic: str):
+            print(f"\n{'='*70}")
+            print(f"🎓 INICIANDO ANÁLISIS DE INVESTIGACIÓN PhD")
+            print(f"📋 Tema: {topic}")
+            print(f"🤖 Proveedor: {self.api_provider.upper()}")
+            print(f"{'='*70}\n")
+            
+            self.create_agents()
+            crew = Crew(
+                agents=self.agents, 
+                tasks=self.create_tasks(topic), 
+                process=Process.sequential, 
+                verbose=True
+            )
+            
+            start = datetime.now()
+            result = crew.kickoff()
+            duration = (datetime.now() - start).total_seconds()
+            
+            print(f"\n{'='*70}")
+            print(f"✅ ANÁLISIS COMPLETADO")
+            print(f"⏱️  Duración: {duration:.1f} segundos")
+            print(f"{'='*70}\n")
+            
+            return {
+                "topic": topic,
+                "provider": self.api_provider,
+                "duration": duration,
+                "methodology": str(result)
+            }
+    
+    print("✅ Sistema de agentes listo\n")
+    
+    # INTERFAZ GRADIO
+    print("🎨 Creando interfaz Gradio...")
+    
+    def run_analysis(topic, provider, api_key, model):
+        try:
+            if not topic or not topic.strip():
+                return "❌ Por favor ingresa un tema de investigación"
+            if not api_key or not api_key.strip():
+                return "❌ Por favor ingresa tu API key"
+            
+            crew = PhDResearchCrew(provider, api_key.strip(), model if model else None)
+            results = crew.run(topic.strip())
+            
+            return f"""
+# ✅ ANÁLISIS COMPLETADO
+
+**Tema:** {results['topic']}  
+**Proveedor:** {results['provider'].upper()}  
+**Duración:** {results['duration']:.1f} segundos
+
+---
+
+# 📋 METODOLOGÍA DE INVESTIGACIÓN PhD
+
+{results['methodology']}
+
+---
+
+*Generado por PhD Research System con 11 agentes especializados*
+            """
+        except Exception as e:
+            return f"""
+❌ **ERROR:** {str(e)}
+
+**Posibles causas:**
+- API key inválida o sin créditos
+- Problema de conexión
+- Límite de rate alcanzado
+
+**Soluciones:**
+1. Verifica tu API key
+2. Asegúrate de tener créditos
+3. Intenta con otro proveedor/modelo
+            """
+    
+    with gr.Blocks(theme=gr.themes.Soft()) as demo:
+        gr.Markdown("""
+        # 🎓 PhD Research Methodology System
+        ## Sistema Multi-Agente con 11 Agentes Especializados
+        
+        Genera metodologías de investigación completas siguiendo 10 pasos académicos.
+        **Tiempo estimado: 3-5 minutos por análisis**
+        
+        ---
+        """)
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### 📝 Configuración")
+                
+                topic = gr.Textbox(
+                    label="🔍 Tema de Investigación",
+                    placeholder="Ej: Impact of Remote Work on Employee Mental Health and Productivity",
+                    lines=3
+                )
+                
+                provider = gr.Radio(
+                    choices=["openai", "groq"],
+                    label="🤖 Proveedor de IA",
+                    value="groq",
+                    info="Groq es más rápido y económico (~$0.10 vs $2-5)"
+                )
+                
+                model = gr.Dropdown(
+                    choices=[
+                        "gpt-4-turbo-preview",
+                        "gpt-3.5-turbo",
+                        "llama-3.1-70b-versatile",
+                        "llama-3.1-8b-instant",
+                    ],
+                    label="🎯 Modelo",
+                    value="llama-3.1-70b-versatile",
+                    info="Llama 70B ofrece buen balance calidad/precio"
+                )
+                
+                api_key = gr.Textbox(
+                    label="🔑 API Key",
+                    placeholder="sk-... (OpenAI) o gsk_... (Groq)",
+                    type="password"
+                )
+                
+                btn = gr.Button("🚀 Iniciar Análisis de Investigación", variant="primary", size="lg")
+                
+                gr.Markdown("""
+                ---
+                ### 🔑 Obtener API Keys:
+                - **Groq (Recomendado):** https://console.groq.com/keys
+                - **OpenAI:** https://platform.openai.com/api-keys
+                
+                ### 💰 Costos Aproximados:
+                - **Groq Llama 70B:** ~$0.10-0.50 por análisis
+                - **Groq Llama 8B:** ~$0.05-0.20 por análisis
+                - **OpenAI GPT-4:** ~$2-5 por análisis
+                - **OpenAI GPT-3.5:** ~$0.50-1 por análisis
+                
+                ### ⏱️ Tiempo de Ejecución:
+                - Llama 8B: 1-2 minutos
+                - Llama 70B: 2-4 minutos
+                - GPT-3.5: 2-3 minutos
+                - GPT-4: 3-5 minutos
+                """)
+            
+            with gr.Column():
+                gr.Markdown("### 📊 Resultados")
+                output = gr.Markdown(
+                    value="Los resultados de tu metodología de investigación aparecerán aquí después de ejecutar el análisis..."
+                )
+        
+        btn.click(
+            fn=run_analysis,
+            inputs=[topic, provider, api_key, model],
+            outputs=output
+        )
+        
+        gr.Markdown("""
+        ---
+        ### 📋 Lo que obtendrás:
+        1. ✅ Research Problem & Questions (RQs)
+        2. ✅ Literature Review Insights
+        3. ✅ Philosophical Position
+        4. ✅ Research Design
+        5. ✅ Data Collection Methods
+        6. ✅ Sampling Strategy
+        7. ✅ Data Analysis Plan
+        8. ✅ Quality Criteria
+        9. ✅ Ethical Considerations
+        10. ✅ Pilot & Refinement Plan
+        
+        **Desarrollado con ❤️ usando CrewAI + LangChain + Gradio**
+        """)
+    
+    print("✅ Interfaz creada\n")
+    print("🚀 Iniciando servidor Gradio...\n")
+    
+    demo.launch(debug=True, share=True)
+    
+    print("""
+    ╔════════════════════════════════════════════════════════════╗
+    ║          ✅ ¡SISTEMA LISTO!                                ║
+    ╚════════════════════════════════════════════════════════════╝
+    
+    📱 Verás 2 enlaces arriba:
+       • Local URL (solo para ti)
+       • Public URL (compartible por 72 horas)
+    
+    🎯 Cómo usar:
+       1. Click en el enlace público
+       2. Ingresa tu tema de investigación
+       3. Selecciona proveedor (Groq recomendado)
+       4. Elige modelo
+       5. Pega tu API key
+       6. Click "Iniciar Análisis"
+       7. Espera 2-5 minutos
+       8. ¡Obtén tu metodología completa!
+    
+    🎓 ¡Buena suerte con tu investigación doctoral! ✨
+    """)
