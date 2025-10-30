@@ -1,0 +1,99 @@
+# -------------------------
+# Colab-ready: Emociones con gTTS + transformaciones (estable y compatible)
+# -------------------------
+# Instalaciones (incluye ffmpeg para pydub)
+!apt-get update -qq
+!apt-get install -y -qq ffmpeg
+!pip install -q gTTS pydub librosa soundfile numpy IPython
+
+# Imports
+import os
+from gtts import gTTS
+from pydub import AudioSegment
+import numpy as np
+import soundfile as sf
+import librosa
+from IPython.display import Audio, display
+
+# Directorio de salida
+OUT_DIR = "emotions_gtts_outputs"
+os.makedirs(OUT_DIR, exist_ok=True)
+
+# Función: sintetizar con gTTS y guardar WAV (gTTS guarda mp3, convertimos a wav)
+def synth_gtts_to_wav(text, lang="es", out_wav_path="base.wav"):
+    tmp_mp3 = out_wav_path.replace(".wav", "_tmp.mp3")
+    tts = gTTS(text=text, lang=lang, slow=False)
+    tts.save(tmp_mp3)
+    # convertir mp3 -> wav con pydub (ffmpeg)
+    audio = AudioSegment.from_file(tmp_mp3, format="mp3")
+    audio.export(out_wav_path, format="wav")
+    os.remove(tmp_mp3)
+    return out_wav_path
+
+# Función: cambiar pitch (semitonos) y speed (rate) usando librosa
+def change_pitch_and_speed(in_wav, out_wav, pitch_steps=0.0, speed=1.0):
+    y, sr = librosa.load(in_wav, sr=None)
+    # pitch shift
+    if abs(pitch_steps) > 1e-6:
+        y = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_steps)
+    # time-stretch (speed)
+    if abs(speed - 1.0) > 1e-6:
+        # librosa.effects.time_stretch expects monophonic; already is
+        y = librosa.effects.time_stretch(y, rate=speed)
+    sf.write(out_wav, y, sr)
+    return out_wav
+
+# Función: tremolo / vibrato simple (amplitude modulation) para 'miedo' u otros
+def add_tremolo(in_wav, out_wav, freq=5.0, depth=0.25):
+    y, sr = librosa.load(in_wav, sr=None)
+    t = np.arange(len(y)) / sr
+    mod = 1.0 + depth * np.sin(2 * np.pi * freq * t)
+    y_mod = y * mod
+    # normalizar para evitar clipping
+    max_val = np.max(np.abs(y_mod))
+    if max_val > 0:
+        y_mod = y_mod / max_val * 0.95
+    sf.write(out_wav, y_mod, sr)
+    return out_wav
+
+# Presets emocionales (ajustables)
+EMOTION_PRESETS = {
+    "alegria": {"pitch_steps": +3.0, "speed": 1.18},
+    "tristeza": {"pitch_steps": -3.5, "speed": 0.82},
+    "enojo": {"pitch_steps": +1.5, "speed": 1.22},
+    "miedo": {"pitch_steps": -1.0, "speed": 1.05},
+    "calma": {"pitch_steps": -2.0, "speed": 0.90},
+}
+
+# Generador: crea audio base y variantes emocionales
+def generate_emotional_gtts(text, out_dir=OUT_DIR, base_name="base_gtts.wav"):
+    os.makedirs(out_dir, exist_ok=True)
+    base_path = os.path.join(out_dir, base_name)
+    print("Sintetizando con gTTS (es)...")
+    synth_gtts_to_wav(text, lang="es", out_wav_path=base_path)
+    results = {}
+    for emo, params in EMOTION_PRESETS.items():
+        out_path = os.path.join(out_dir, f"{emo}.wav")
+        change_pitch_and_speed(base_path, out_path, pitch_steps=params["pitch_steps"], speed=params["speed"])
+        results[emo] = out_path
+    # aplicar tremolo a 'miedo' como variante
+    if "miedo" in results:
+        trem_path = os.path.join(out_dir, "miedo_trem.wav")
+        add_tremolo(results["miedo"], trem_path, freq=5.5, depth=0.28)
+        results["miedo_trem"] = trem_path
+    return results
+
+# Demo: generar
+texto_demo = "Hola, amigos. Hoy vamos a aprender sobre las emociones. ¿Me ayudas a escuchar y adivinar?"
+outputs = generate_emotional_gtts(texto_demo)
+print("Generados:", outputs)
+
+# Reproducir resultados en notebook
+for emo, path in outputs.items():
+    print("Reproduciendo →", emo)
+    display(Audio(path, autoplay=False))
+
+# Mostrar rutas para descarga
+print("\nArchivos listos en:", OUT_DIR)
+for emo, path in outputs.items():
+    print(emo, "->", path)
