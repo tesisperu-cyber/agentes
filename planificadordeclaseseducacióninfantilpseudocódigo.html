@@ -1,0 +1,1498 @@
+🌍 SISTEMA ORQUESTADOR MULTILINGÜE DE PLANIFICACIÓN EDUCATIVA INFANTIL
+Arquitectura del Sistema Multi-Agente
+
+# ============================================================================
+# CLASE PRINCIPAL - ORQUESTADOR MAESTRO
+# ============================================================================
+
+class OrquestadorMaestro:
+    """
+    Orquestador Principal - Experto Multilingüe en Educación Infantil
+    
+    Perfil:
+    - PhD en Educación Infantil
+    - Ha leído miles de planes curriculares mundiales
+    - Conoce sistemas educativos de 50+ países
+    - Multilingüe (inglés, español, chino, portugués)
+    - Experiencia equivalente a ministros de educación mundiales
+    - Especialista en pedagogía comparada
+    """
+    
+    def __init__(self):
+        # Base de conocimiento global
+        self.conocimiento_global = {
+            'teorias_pedagogicas': self.cargar_teorias_pedagogicas(),
+            'mejores_practicas_mundiales': self.cargar_mejores_practicas(),
+            'marcos_curriculares': self.cargar_marcos_curriculares(),
+            'investigaciones': self.cargar_investigaciones_educativas(),
+            'estandares_internacionales': self.cargar_estandares()
+        }
+        
+        # Agentes regionales principales
+        self.agentes_regionales = {
+            'eeuu': AgenteEEUU(),
+            'china': AgenteChina(),
+            'latinoamerica': OrquestadorLatinoamerica()  # Sub-orquestador
+        }
+        
+        # Configuración multilingüe
+        self.idiomas = ['es', 'en', 'zh', 'pt']
+        self.idioma_actual = 'es'
+        
+        # Sistema de análisis contextual
+        self.analizador_contexto = AnalizadorContexto()
+        
+        # Memoria de planificaciones previas
+        self.historial = []
+        
+        # Sistema de evaluación de calidad
+        self.evaluador_calidad = EvaluadorCalidad()
+    
+    def analizar_solicitud(self, inputs_usuario):
+        """
+        Analiza la solicitud y determina la mejor ruta de procesamiento
+        
+        Retorna:
+        - region: 'eeuu', 'china', o 'latinoamerica'
+        - pais_especifico: None o código de país (para Latinoamérica)
+        - nivel_confianza: 0-100
+        - recomendaciones: lista de ajustes sugeridos
+        """
+        analisis = {
+            'region_detectada': None,
+            'pais_especifico': None,
+            'idioma_detectado': None,
+            'contexto_cultural': None,
+            'nivel_socioeconomico': None,
+            'recursos_disponibles': None,
+            'preferencias_pedagogicas': None
+        }
+        
+        # 1. Detectar región/país
+        if 'pais' in inputs_usuario:
+            pais = inputs_usuario['pais'].lower()
+            analisis['region_detectada'] = self.mapear_pais_a_region(pais)
+            analisis['pais_especifico'] = pais
+        elif 'estilo_pedagogico' in inputs_usuario:
+            analisis['region_detectada'] = inputs_usuario['estilo_pedagogico']
+        
+        # 2. Detectar idioma
+        analisis['idioma_detectado'] = self.detectar_idioma(inputs_usuario.get('tema', ''))
+        
+        # 3. Analizar contexto cultural
+        analisis['contexto_cultural'] = self.analizador_contexto.analizar_cultura(
+            pais=analisis['pais_especifico'],
+            descripcion=inputs_usuario.get('contexto_adicional', '')
+        )
+        
+        # 4. Evaluar recursos
+        analisis['recursos_disponibles'] = self.evaluar_recursos(inputs_usuario)
+        
+        # 5. Identificar preferencias pedagógicas
+        analisis['preferencias_pedagogicas'] = self.identificar_preferencias(inputs_usuario)
+        
+        return analisis
+    
+    def generar_planificacion_global(self, inputs_usuario):
+        """
+        Método principal para generar planificaciones
+        Orquesta todos los agentes y sintetiza el mejor resultado
+        """
+        print("🌍 ORQUESTADOR MAESTRO INICIADO")
+        print("=" * 70)
+        
+        # FASE 1: Análisis profundo de la solicitud
+        print("\n📊 FASE 1: Analizando solicitud...")
+        analisis = self.analizar_solicitud(inputs_usuario)
+        
+        print(f"   ✓ Región detectada: {analisis['region_detectada']}")
+        print(f"   ✓ País específico: {analisis['pais_especifico']}")
+        print(f"   ✓ Idioma: {analisis['idioma_detectado']}")
+        
+        # FASE 2: Validación y enriquecimiento de inputs
+        print("\n🔍 FASE 2: Validando y enriqueciendo inputs...")
+        inputs_enriquecidos = self.enriquecer_inputs(inputs_usuario, analisis)
+        
+        # FASE 3: Selección y activación de agente(s)
+        print("\n🤖 FASE 3: Activando agente(s) especializados...")
+        region = analisis['region_detectada']
+        
+        if region == 'latinoamerica':
+            # Delegar al orquestador latinoamericano
+            pais = analisis['pais_especifico']
+            print(f"   → Delegando a Orquestador Latinoamérica (País: {pais})")
+            agente = self.agentes_regionales['latinoamerica']
+            planificacion = agente.generar_planificacion_latam(
+                inputs_enriquecidos, 
+                pais
+            )
+        else:
+            # Usar agente regional directo
+            print(f"   → Usando Agente {region.upper()}")
+            agente = self.agentes_regionales[region]
+            planificacion = agente.generar_planificacion(inputs_enriquecidos)
+        
+        # FASE 4: Aplicar conocimiento global experto
+        print("\n🎓 FASE 4: Aplicando experiencia pedagógica global...")
+        planificacion_mejorada = self.aplicar_mejores_practicas_globales(
+            planificacion,
+            analisis
+        )
+        
+        # FASE 5: Evaluación de calidad
+        print("\n✅ FASE 5: Evaluando calidad de la planificación...")
+        evaluacion = self.evaluador_calidad.evaluar(planificacion_mejorada)
+        
+        print(f"   Calidad general: {evaluacion['score']}/100")
+        print(f"   Alineación curricular: {evaluacion['alineacion_curricular']}")
+        print(f"   Pertinencia cultural: {evaluacion['pertinencia_cultural']}")
+        print(f"   Viabilidad práctica: {evaluacion['viabilidad']}")
+        
+        # FASE 6: Refinamiento si es necesario
+        if evaluacion['score'] < 85:
+            print("\n🔧 FASE 6: Refinando planificación...")
+            planificacion_mejorada = self.refinar_planificacion(
+                planificacion_mejorada,
+                evaluacion['sugerencias']
+            )
+        
+        # FASE 7: Generar recomendaciones adicionales
+        print("\n💡 FASE 7: Generando recomendaciones adicionales...")
+        recomendaciones = self.generar_recomendaciones_expertas(
+            planificacion_mejorada,
+            analisis
+        )
+        
+        # FASE 8: Compilar resultado final
+        resultado_final = {
+            'planificacion': planificacion_mejorada,
+            'analisis_contextual': analisis,
+            'evaluacion_calidad': evaluacion,
+            'recomendaciones_expertas': recomendaciones,
+            'referencias_curriculares': self.obtener_referencias(analisis),
+            'recursos_complementarios': self.sugerir_recursos(analisis),
+            'metadatos': {
+                'version': '2.0',
+                'fecha_generacion': self.obtener_fecha(),
+                'agente_utilizado': region,
+                'pais': analisis['pais_especifico'],
+                'idioma': analisis['idioma_detectado']
+            }
+        }
+        
+        # Guardar en historial
+        self.historial.append({
+            'inputs': inputs_usuario,
+            'resultado': resultado_final,
+            'timestamp': self.obtener_timestamp()
+        })
+        
+        print("\n" + "=" * 70)
+        print("✨ PLANIFICACIÓN COMPLETADA EXITOSAMENTE")
+        
+        return resultado_final
+    
+    def mapear_pais_a_region(self, pais):
+        """Mapea país específico a región macro"""
+        mapeo = {
+            # Latinoamérica
+            'peru': 'latinoamerica',
+            'perú': 'latinoamerica',
+            'colombia': 'latinoamerica',
+            'chile': 'latinoamerica',
+            'venezuela': 'latinoamerica',
+            'argentina': 'latinoamerica',
+            'méxico': 'latinoamerica',
+            'mexico': 'latinoamerica',
+            'ecuador': 'latinoamerica',
+            'bolivia': 'latinoamerica',
+            'paraguay': 'latinoamerica',
+            'uruguay': 'latinoamerica',
+            'brasil': 'latinoamerica',
+            'brazil': 'latinoamerica',
+            
+            # EEUU
+            'usa': 'eeuu',
+            'eeuu': 'eeuu',
+            'estados unidos': 'eeuu',
+            'united states': 'eeuu',
+            
+            # China
+            'china': 'china',
+            '中国': 'china'
+        }
+        return mapeo.get(pais, 'latinoamerica')  # Default latinoamerica
+    
+    def detectar_idioma(self, texto):
+        """Detecta el idioma del texto"""
+        # Implementación simplificada
+        if any(char in texto for char in '中文'):
+            return 'zh'
+        elif any(word in texto.lower() for word in ['the', 'and', 'is', 'are']):
+            return 'en'
+        else:
+            return 'es'
+    
+    def enriquecer_inputs(self, inputs_usuario, analisis):
+        """Enriquece los inputs con conocimiento experto"""
+        inputs_enriquecidos = inputs_usuario.copy()
+        
+        # Agregar contexto curricular
+        if analisis['pais_especifico']:
+            inputs_enriquecidos['marco_curricular'] = self.obtener_marco_curricular(
+                analisis['pais_especifico']
+            )
+        
+        # Sugerir competencias si no están definidas
+        if not inputs_enriquecidos.get('competencias'):
+            inputs_enriquecidos['competencias'] = self.sugerir_competencias(
+                inputs_enriquecidos.get('tema'),
+                analisis['region_detectada']
+            )
+        
+        # Ajustar objetivos según edad
+        if inputs_enriquecidos.get('objetivos'):
+            inputs_enriquecidos['objetivos_ajustados'] = self.ajustar_objetivos_por_edad(
+                inputs_enriquecidos['objetivos'],
+                inputs_enriquecidos.get('edad')
+            )
+        
+        # Sugerir recursos según contexto
+        inputs_enriquecidos['recursos_sugeridos'] = self.sugerir_recursos_contextuales(
+            analisis['recursos_disponibles'],
+            analisis['contexto_cultural']
+        )
+        
+        return inputs_enriquecidos
+    
+    def aplicar_mejores_practicas_globales(self, planificacion, analisis):
+        """
+        Aplica conocimiento de mejores prácticas pedagógicas mundiales
+        Basado en investigaciones, papers académicos y experiencia de ministros
+        """
+        mejoras = []
+        
+        # 1. Verificar inclusión de juego (crucial según investigación global)
+        if not self.verificar_presencia_juego(planificacion):
+            mejoras.append({
+                'tipo': 'agregar_juego',
+                'justificacion': 'Investigaciones OCDE demuestran que el juego es fundamental',
+                'referencia': 'OECD Early Learning Framework 2020'
+            })
+        
+        # 2. Verificar diferenciación pedagógica
+        if not self.verificar_diferenciacion(planificacion):
+            mejoras.append({
+                'tipo': 'agregar_diferenciacion',
+                'justificacion': 'Atención a la diversidad según UNESCO',
+                'referencia': 'UNESCO Guidelines for Inclusion 2019'
+            })
+        
+        # 3. Verificar enfoque socioemocional
+        if not self.verificar_socioemocional(planificacion):
+            mejoras.append({
+                'tipo': 'fortalecer_socioemocional',
+                'justificacion': 'Desarrollo socioemocional es predictor de éxito (CASEL)',
+                'referencia': 'CASEL Framework 2020'
+            })
+        
+        # 4. Aplicar las mejoras
+        for mejora in mejoras:
+            planificacion = self.aplicar_mejora(planificacion, mejora, analisis)
+        
+        # 5. Agregar perspectiva comparada
+        planificacion['perspectiva_comparada'] = self.generar_perspectiva_comparada(
+            planificacion,
+            analisis
+        )
+        
+        return planificacion
+    
+    def generar_recomendaciones_expertas(self, planificacion, analisis):
+        """
+        Genera recomendaciones desde la perspectiva de un experto global
+        """
+        return {
+            'implementacion': [
+                "Considerar tiempos de transición entre actividades",
+                "Preparar materiales con anticipación",
+                "Tener plan B para actividades al aire libre",
+                "Documentar el proceso con fotos/videos"
+            ],
+            'adaptaciones_culturales': self.generar_adaptaciones_culturales(analisis),
+            'conexion_familias': self.generar_estrategias_familias(analisis),
+            'evaluacion_continua': [
+                "Observar participación y engagement",
+                "Registrar momentos significativos",
+                "Identificar necesidades emergentes",
+                "Ajustar en tiempo real si es necesario"
+            ],
+            'desarrollo_profesional': [
+                f"Leer más sobre: {self.sugerir_lecturas(analisis['region_detectada'])}",
+                "Compartir experiencia con colegas",
+                "Reflexionar sobre qué funcionó y qué no"
+            ],
+            'proximos_pasos': self.sugerir_proximos_pasos(planificacion)
+        }
+    
+    def obtener_referencias(self, analisis):
+        """Obtiene referencias curriculares específicas"""
+        pais = analisis['pais_especifico']
+        referencias = {
+            'marco_curricular': f"[Marco curricular oficial de {pais}]",
+            'estandares': f"[Estándares de aprendizaje de {pais}]",
+            'documentos_oficiales': [],
+            'investigaciones_locales': []
+        }
+        return referencias
+    
+    # Métodos auxiliares
+    def cargar_teorias_pedagogicas(self):
+        return {
+            'piaget': 'Constructivismo cognitivo',
+            'vygotsky': 'Teoría sociocultural',
+            'montessori': 'Pedagogía Montessori',
+            'reggio': 'Reggio Emilia',
+            'freire': 'Pedagogía crítica',
+            'bruner': 'Aprendizaje por descubrimiento'
+        }
+    
+    def cargar_mejores_practicas(self):
+        return {}
+    
+    def cargar_marcos_curriculares(self):
+        return {}
+    
+    def cargar_investigaciones_educativas(self):
+        return {}
+    
+    def cargar_estandares(self):
+        return {}
+    
+    def evaluar_recursos(self, inputs):
+        return inputs.get('recursos', 'materiales_basicos')
+    
+    def identificar_preferencias(self, inputs):
+        return {}
+    
+    def obtener_marco_curricular(self, pais):
+        return {}
+    
+    def sugerir_competencias(self, tema, region):
+        return []
+    
+    def ajustar_objetivos_por_edad(self, objetivos, edad):
+        return objetivos
+    
+    def sugerir_recursos_contextuales(self, recursos, cultura):
+        return []
+    
+    def verificar_presencia_juego(self, plan):
+        return True
+    
+    def verificar_diferenciacion(self, plan):
+        return True
+    
+    def verificar_socioemocional(self, plan):
+        return True
+    
+    def aplicar_mejora(self, plan, mejora, analisis):
+        return plan
+    
+    def generar_perspectiva_comparada(self, plan, analisis):
+        return {}
+    
+    def generar_adaptaciones_culturales(self, analisis):
+        return []
+    
+    def generar_estrategias_familias(self, analisis):
+        return []
+    
+    def sugerir_lecturas(self, region):
+        return "pedagogía comparada"
+    
+    def sugerir_proximos_pasos(self, plan):
+        return []
+    
+    def sugerir_recursos(self, analisis):
+        return []
+    
+    def refinar_planificacion(self, plan, sugerencias):
+        return plan
+    
+    def obtener_fecha(self):
+        return "2025-11-01"
+    
+    def obtener_timestamp(self):
+        return "2025-11-01 12:00:00"
+
+
+# ============================================================================
+# ORQUESTADOR LATINOAMÉRICA (SUB-ORQUESTADOR)
+# ============================================================================
+
+class OrquestadorLatinoamerica:
+    """
+    Orquestador especializado en Latinoamérica
+    Coordina 6 agentes nacionales con conocimiento profundo de diseños curriculares
+    """
+    
+    def __init__(self):
+        # Agentes nacionales especializados
+        self.agentes_paises = {
+            'peru': AgentePeru(),
+            'colombia': AgenteColombia(),
+            'chile': AgenteChile(),
+            'venezuela': AgenteVenezuela(),
+            'argentina': AgenteArgentina(),
+            'mexico': AgenteMexico()
+        }
+        
+        # Conocimiento regional compartido
+        self.conocimiento_regional = {
+            'valores_latinoamericanos': [
+                'familia', 'comunidad', 'solidaridad', 'respeto',
+                'identidad_cultural', 'raices', 'tradiciones'
+            ],
+            'desafios_comunes': [
+                'recursos_limitados',
+                'brecha_urbano_rural',
+                'diversidad_cultural',
+                'multilingüismo'
+            ],
+            'fortalezas_regionales': [
+                'calidez_docente',
+                'creatividad_pedagogica',
+                'participacion_familiar',
+                'resiliencia'
+            ]
+        }
+        
+        # Mapeo de similitudes curriculares
+        self.similitudes_curriculares = self.mapear_similitudes()
+    
+    def generar_planificacion_latam(self, inputs_enriquecidos, pais):
+        """
+        Genera planificación específica para país latinoamericano
+        Aprovecha conocimientos compartidos y especificidades nacionales
+        """
+        print(f"\n🌎 ORQUESTADOR LATINOAMÉRICA ACTIVADO")
+        print(f"   País objetivo: {pais.upper()}")
+        
+        # PASO 1: Identificar agente nacional
+        if pais not in self.agentes_paises:
+            print(f"   ⚠️  Agente específico para {pais} no disponible")
+            print(f"   → Usando agente genérico latinoamericano")
+            agente = self.crear_agente_generico_latam(pais)
+        else:
+            agente = self.agentes_paises[pais]
+            print(f"   ✓ Agente {pais.upper()} activado")
+        
+        # PASO 2: Enriquecer con contexto regional
+        inputs_contextualizados = self.contextualizar_para_latam(
+            inputs_enriquecidos,
+            pais
+        )
+        
+        # PASO 3: Generar planificación nacional
+        print(f"   → Generando planificación con diseño curricular de {pais}...")
+        planificacion_nacional = agente.generar_planificacion_nacional(
+            inputs_contextualizados
+        )
+        
+        # PASO 4: Aplicar perspectiva regional
+        print(f"   → Aplicando perspectiva regional latinoamericana...")
+        planificacion_enriquecida = self.aplicar_perspectiva_regional(
+            planificacion_nacional,
+            pais
+        )
+        
+        # PASO 5: Agregar comparativa regional
+        print(f"   → Generando comparativa con otros países de la región...")
+        planificacion_enriquecida['comparativa_regional'] = self.generar_comparativa_regional(
+            planificacion_nacional,
+            pais
+        )
+        
+        return planificacion_enriquecida
+    
+    def contextualizar_para_latam(self, inputs, pais):
+        """Agrega contexto específico latinoamericano"""
+        inputs_contextualizados = inputs.copy()
+        
+        # Agregar valores latinoamericanos
+        if 'valores' not in inputs_contextualizados:
+            inputs_contextualizados['valores'] = self.conocimiento_regional['valores_latinoamericanos'][:3]
+        
+        # Ajustar recursos según realidad latina
+        inputs_contextualizados['recursos_latam'] = {
+            'reciclados': True,
+            'del_entorno': True,
+            'tecnologia_limitada': True
+        }
+        
+        # Agregar componente familiar fuerte
+        inputs_contextualizados['enfasis_familia'] = True
+        
+        # Considerar diversidad
+        inputs_contextualizados['diversidad_cultural'] = True
+        
+        return inputs_contextualizados
+    
+    def aplicar_perspectiva_regional(self, planificacion, pais):
+        """Aplica conocimientos compartidos de la región"""
+        
+        # Agregar elementos culturales comunes
+        if 'valores' not in planificacion:
+            planificacion['valores_latinoamericanos'] = self.conocimiento_regional['valores_latinoamericanos']
+        
+        # Sugerir adaptaciones para contextos diversos
+        planificacion['adaptaciones_contextuales'] = {
+            'urbano': "[Adaptaciones para contexto urbano]",
+            'rural': "[Adaptaciones para contexto rural]",
+            'indigena': "[Adaptaciones para contexto indígena]",
+            'multicultural': "[Adaptaciones para contexto multicultural]"
+        }
+        
+        # Agregar conexiones con patrimonio cultural
+        planificacion['conexion_patrimonio'] = self.generar_conexiones_patrimonio(pais)
+        
+        return planificacion
+    
+    def generar_comparativa_regional(self, planificacion, pais_origen):
+        """
+        Genera comparativa con enfoques de otros países latinoamericanos
+        Útil para aprender de las mejores prácticas regionales
+        """
+        comparativa = {
+            'titulo': f'Perspectiva Comparada: Cómo se abordaría este tema en otros países de Latinoamérica',
+            'pais_origen': pais_origen,
+            'comparaciones': []
+        }
+        
+        # Comparar con países vecinos o similares
+        paises_comparar = self.seleccionar_paises_para_comparar(pais_origen)
+        
+        for pais in paises_comparar:
+            if pais in self.agentes_paises:
+                enfoque = self.agentes_paises[pais].describir_enfoque()
+                comparativa['comparaciones'].append({
+                    'pais': pais,
+                    'enfoque_distintivo': enfoque,
+                    'similitudes': self.identificar_similitudes(pais_origen, pais),
+                    'diferencias': self.identificar_diferencias(pais_origen, pais),
+                    'aprendizajes': f"[Qué puede aprender {pais_origen} de {pais}]"
+                })
+        
+        return comparativa
+    
+    def mapear_similitudes(self):
+        """Mapea similitudes entre diseños curriculares latinoamericanos"""
+        return {
+            'colombia_mexico': ['Dimensiones del desarrollo', 'Enfoque por competencias'],
+            'chile_argentina': ['Núcleos de aprendizaje', 'Educación pública fuerte'],
+            'peru_colombia': ['Enfoque intercultural', 'Rutas de aprendizaje']
+        }
+    
+    def crear_agente_generico_latam(self, pais):
+        """Crea agente genérico para países sin agente específico"""
+        return AgenteGenericoLatam(pais)
+    
+    def generar_conexiones_patrimonio(self, pais):
+        return {}
+    
+    def seleccionar_paises_para_comparar(self, pais_origen):
+        # Lógica para seleccionar 2-3 países relevantes
+        todos = ['peru', 'colombia', 'chile', 'venezuela', 'argentina', 'mexico']
+        todos.remove(pais_origen)
+        return todos[:2]
+    
+    def identificar_similitudes(self, pais1, pais2):
+        return []
+    
+    def identificar_diferencias(self, pais1, pais2):
+        return []
+
+
+# ============================================================================
+# AGENTES NACIONALES LATINOAMERICANOS
+# ============================================================================
+
+class AgenteNacionalBase:
+    """Clase base para agentes nacionales latinoamericanos"""
+    
+    def __init__(self, pais, nombre_oficial):
+        self.pais = pais
+        self.nombre_oficial = nombre_oficial
+        self.diseno_curricular = None
+        self.documentos_oficiales = []
+        self.terminologia_local = {}
+        self.estructura_sistema = {}
+        
+    def cargar_diseno_curricular(self):
+        """Carga el diseño curricular oficial del país"""
+        raise NotImplementedError
+    
+    def generar_planificacion_nacional(self, inputs):
+        """Genera planificación según normativa nacional"""
+        raise NotImplementedError
+    
+    def describir_enfoque(self):
+        """Describe el enfoque pedagógico distintivo del país"""
+        raise NotImplementedError
+
+
+class AgentePeru(AgenteNacionalBase):
+    """
+    Agente especializado en Perú
+    Conoce: Currículo Nacional de Educación Básica, Programa Curricular de Educación Inicial
+    """
+    
+    def __init__(self):
+        super().__init__('peru', 'República del Perú')
+        self.diseno_curricular = self.cargar_diseno_curricular()
+        
+    def cargar_diseno_curricular(self):
+        return {
+            'nombre': 'Currículo Nacional de Educación Básica (2016)',
+            'organismo': 'MINEDU - Ministerio de Educación del Perú',
+            'nivel': 'Educación Inicial',
+            'ciclos': {
+                'ciclo_I': '0-2 años',
+                'ciclo_II': '3-5 años'
+            },
+            'areas_curriculares': [
+                'Personal Social',
+                'Psicomotriz',
+                'Comunicación',
+                'Matemática',
+                'Ciencia y Tecnología',
+                'Castellano como segunda lengua (si aplica)'
+            ],
+            'competencias': {
+                'personal_social': [
+                    'Construye su identidad',
+                    'Convive y participa democráticamente',
+                    'Construye su identidad como persona humana'
+                ],
+                'psicomotriz': [
+                    'Se desenvuelve de manera autónoma a través de su motricidad'
+                ],
+                'comunicacion': [
+                    'Se comunica oralmente en su lengua materna',
+                    'Lee diversos tipos de textos',
+                    'Escribe diversos tipos de textos',
+                    'Crea proyectos desde los lenguajes artísticos'
+                ],
+                'matematica': [
+                    'Resuelve problemas de cantidad',
+                    'Resuelve problemas de forma, movimiento y localización'
+                ],
+                'ciencia': [
+                    'Indaga mediante métodos científicos',
+                    'Explica el mundo físico'
+                ]
+            },
+            'enfoques_transversales': [
+                'Enfoque de derechos',
+                'Enfoque inclusivo o de atención a la diversidad',
+                'Enfoque intercultural',
+                'Enfoque de igualdad de género',
+                'Enfoque ambiental',
+                'Enfoque de orientación al bien común',
+                'Enfoque de búsqueda de la excelencia'
+            ],
+            'caracteristicas_distintivas': [
+                'Enfoque por competencias',
+                'Educación intercultural bilingüe (EIB)',
+                'Atención a diversidad lingüística (castellano, quechua, aimara, lenguas amazónicas)',
+                'Evaluación formativa',
+                'Estándares de aprendizaje'
+            ]
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        """Genera planificación según Currículo Nacional peruano"""
+        
+        planificacion = {
+            'titulo': 'PLANIFICACIÓN DE ACTIVIDAD DE APRENDIZAJE - Educación Inicial',
+            'datos_generales': {
+                'institucion': '[Nombre de la I.E.I.]',
+                'nivel': 'Inicial',
+                'edad': inputs.get('edad'),
+                'seccion': '[Sección]',
+                'docente': '[Nombre docente]',
+                'fecha': inputs.get('fecha', '[Fecha]')
+            },
+            
+            'nombre_actividad': inputs.get('tema', '[Tema]'),
+            
+            'propositos_aprendizaje': self.definir_propositos(inputs),
+            
+            'enfoques_transversales': self.seleccionar_enfoques(inputs),
+            
+            'preparacion': {
+                'antes_sesion': [
+                    '¿Qué necesitamos hacer antes de la sesión?',
+                    '- [Preparación de materiales]',
+                    '- [Ambientación del espacio]',
+                    '- [Coordinaciones necesarias]'
+                ],
+                'materiales_recursos': [
+                    '[Material 1]',
+                    '[Material 2]',
+                    '[Material 3]'
+                ],
+                'tiempo': inputs.get('duracion', '[Tiempo estimado]')
+            },
+            
+            'desarrollo_actividad': self.estructurar_momentos_pedagogicos(inputs),
+            
+            'evaluacion': {
+                'criterios': '[Criterios de evaluación según competencias]',
+                'instrumentos': [
+                    'Lista de cotejo',
+                    'Registro anecdótico',
+                    'Portafolio'
+                ],
+                'evidencias': '[Qué producirán o demostrarán los niños]'
+            },
+            
+            'reflexion_docente': {
+                'durante': '[Observaciones durante la actividad]',
+                'despues': '[Reflexión después de la actividad]'
+            }
+        }
+        
+        return planificacion
+    
+    def definir_propositos(self, inputs):
+        """Define propósitos según competencias del Currículo Nacional"""
+        return {
+            'competencia': '[Competencia del área curricular]',
+            'capacidades': [
+                '[Capacidad 1]',
+                '[Capacidad 2]'
+            ],
+            'desempenios': '[Desempeños según edad]',
+            'que_nos_dara_evidencia': '[Evidencia de aprendizaje esperada]'
+        }
+    
+    def seleccionar_enfoques(self, inputs):
+        """Selecciona enfoques transversales pertinentes"""
+        return [
+            {
+                'enfoque': 'Enfoque Intercultural',
+                'valor': 'Respeto a la identidad cultural',
+                'actitud': '[Actitud observable]'
+            }
+        ]
+    
+    def estructurar_momentos_pedagogicos(self, inputs):
+        """Estructura según momentos pedagógicos del MINEDU"""
+        return {
+            'inicio': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Motivar, recoger saberes previos, comunicar propósito',
+                'actividades': [
+                    'Asamblea/Reunión de inicio',
+                    'Presentación del tema',
+                    'Recuperación de saberes previos',
+                    'Comunicación del propósito de la actividad'
+                ],
+                'estrategias': '[Estrategias específicas]',
+                'organizacion': 'Sentados en círculo/asamblea'
+            },
+            
+            'desarrollo': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Construcción de aprendizajes',
+                'actividades': self.generar_secuencia_didactica(inputs),
+                'estrategias': [
+                    'Problematización',
+                    'Búsqueda de información',
+                    'Acuerdos o toma de decisiones',
+                    'Experimentación/exploración'
+                ],
+                'organizacion': '[Individual/Grupos/Toda el aula]',
+                'atencion_diferenciada': '[Atención a niños con diferentes ritmos]'
+            },
+            
+            'cierre': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Consolidar, reflexionar, metacognición',
+                'actividades': [
+                    'Recuento de lo realizado',
+                    'Metacognición: ¿Qué aprendimos? ¿Cómo lo aprendimos?',
+                    'Aplicación/transferencia',
+                    'Compromiso para casa (opcional)'
+                ],
+                'preguntas_clave': [
+                    '¿Qué hicimos hoy?',
+                    '¿Qué aprendimos?',
+                    '¿Cómo nos sentimos?',
+                    '¿Para qué nos sirve lo aprendido?'
+                ]
+            }
+        }
+    
+    def generar_secuencia_didactica(self, inputs):
+        """Genera secuencia didáctica detallada"""
+        return [
+            'Paso 1: [Descripción]',
+            'Paso 2: [Descripción]',
+            'Paso 3: [Descripción]'
+        ]
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Enfoque por competencias con énfasis en diversidad cultural',
+            'caracteristicas': [
+                'Integración de lenguas originarias',
+                'Evaluación formativa basada en desempeños',
+                'Atención a contextos rurales y urbanos',
+                'Enfoque intercultural transversal'
+            ]
+        }
+
+
+class AgenteColombia(AgenteNacionalBase):
+    """
+    Agente especializado en Colombia
+    Conoce: Bases Curriculares para Educación Inicial, Lineamientos Curriculares
+    """
+    
+    def __init__(self):
+        super().__init__('colombia', 'República de Colombia')
+        self.diseno_curricular = self.cargar_diseno_curricular()
+    
+    def cargar_diseno_curricular(self):
+        return {
+            'nombre': 'Bases Curriculares para la Educación Inicial y Preescolar (2017)',
+            'organismo': 'MEN - Ministerio de Educación Nacional de Colombia',
+            'nivel': 'Educación Inicial',
+            'rangos_edad': {
+                'primera_infancia': '0-5 años',
+                'preescolar': '5-6 años'
+            },
+            'pilares_educacion_inicial': [
+                'El juego',
+                'El arte',
+                'La literatura',
+                'La exploración del medio'
+            ],
+            'dimensiones_desarrollo': [
+                'Personal y social',
+                'Corporal',
+                'Comunicativa',
+                'Artística',
+                'Cognitiva'
+            ],
+            'lineamientos_preescolar': [
+                'Dimensión socio-afectiva',
+                'Dimensión corporal',
+                'Dimensión cognitiva',
+                'Dimensión comunicativa',
+                'Dimensión estética',
+                'Dimensión espiritual',
+                'Dimensión ética'
+            ],
+            'caracteristicas_distintivas': [
+                'Enfoque de derechos',
+                'Atención integral',
+                'Énfasis en los 4 pilares (juego, arte, literatura, exploración)',
+                'Perspectiva de género y diversidad',
+                'Articulación con Primera Infancia'
+            ]
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        """Genera planificación según Bases Curriculares colombianas"""
+        
+        planificacion = {
+            'titulo': 'PLANEACIÓN PEDAGÓGICA - Educación Inicial',
+            
+            'informacion_general': {
+                'institucion': '[Nombre del jardín/CDI]',
+                'modalidad': '[Institucional/Familiar/Comunitaria]',
+                'nivel': inputs.get('edad'),
+                'nombre_actividad': inputs.get('tema'),
+                'fecha': inputs.get('fecha'),
+                'duracion': inputs.get('duracion'),
+                'docente_agente': '[Nombre]'
+            },
+            
+            'pilar_actividad_rectora': self.identificar_pilar(inputs),
+            
+            'dimension_desarrollo': self.identificar_dimensiones(inputs),
+            
+            'proposito_pedagogico': {
+                'intencion': f"[Qué se busca con la actividad sobre {inputs.get('tema')}]",
+                'por_que': '[Justificación pedagógica]'
+            },
+            
+            'ambientacion_preparacion': {
+                'espacios': '[Cómo se organiza el espacio]',
+                'materiales': self.listar_materiales_colombia(inputs),
+                'consideraciones_previas': '[Qué preparar antes]'
+            },
+            
+            'desarrollo_experiencia': self.estructurar_momentos_colombia(inputs),
+            
+            'seguimiento_desarrollo': {
+                'que_observar': '[Aspectos del desarrollo a observar]',
+                'como_registrar': '[Instrumento de seguimiento]',
+                'dimensiones_evaluar': '[Dimensiones involucradas]'
+            },
+            
+            'reflexion_cualificacion': {
+                'fortalezas': '[Qué funcionó bien]',
+                'oportunidades_mejora': '[Qué ajustar]',
+                'proximos_pasos': '[Continuidad pedagógica]'
+            }
+        }
+        
+        return planificacion
+    
+    def identificar_pilar(self, inputs):
+        """Identifica cuál de los 4 pilares es el eje de la actividad"""
+        return {
+            'pilar_principal': '[Juego/Arte/Literatura/Exploración del medio]',
+            'pilares_integrados': '[Otros pilares que se integran]',
+            'como_se_evidencia': '[Descripción de cómo se manifiesta]'
+        }
+    
+    def identificar_dimensiones(self, inputs):
+        """Identifica dimensiones del desarrollo involucradas"""
+        return [
+            '[Dimensión 1]',
+            '[Dimensión 2]'
+        ]
+    
+    def estructurar_momentos_colombia(self, inputs):
+        """Estructura actividad en momentos según enfoque colombiano"""
+        return {
+            'momento_inicial': {
+                'descripcion': 'Acogida, ambientación, motivación',
+                'tiempo': '[X] minutos',
+                'actividades': [
+                    'Saludo y bienvenida afectuosa',
+                    'Canción o ronda de inicio',
+                    'Presentación de la experiencia',
+                    'Exploración inicial del tema'
+                ]
+            },
+            
+            'momento_central': {
+                'descripcion': 'Desarrollo de la experiencia',
+                'tiempo': '[X] minutos',
+                'actividades': self.generar_experiencia_central(inputs),
+                'interacciones': '[Cómo el agente educativo acompaña]',
+                'flexibilidad': '[Cómo adaptarse a intereses emergentes]'
+            },
+            
+            'momento_cierre': {
+                'descripcion': 'Recapitulación y proyección',
+                'tiempo': '[X] minutos',
+                'actividades': [
+                    'Conversatorio sobre lo vivido',
+                    'Expresión de sentimientos',
+                    'Muestra de producciones (si aplica)',
+                    'Despedida'
+                ]
+            }
+        }
+    
+    def generar_experiencia_central(self, inputs):
+        return [
+            '[Experiencia significativa basada en pilares]',
+            '[Con énfasis en el protagonismo de niños y niñas]'
+        ]
+    
+    def listar_materiales_colombia(self, inputs):
+        return {
+            'convencionales': ['[Material 1]', '[Material 2]'],
+            'no_convencionales': ['[Material reciclado/natural]'],
+            'del_entorno': ['[Elementos del contexto]']
+        }
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Educación Inicial basada en 4 pilares: Juego, Arte, Literatura y Exploración',
+            'caracteristicas': [
+                'Actividades rectoras como ejes',
+                'Énfasis en el arte y la creatividad',
+                'Atención integral en Primera Infancia',
+                'Flexibilidad y seguimiento al interés del niño'
+            ]
+        }
+
+
+class AgenteChile(AgenteNacionalBase):
+    """
+    Agente especializado en Chile
+    Conoce: Bases Curriculares de Educación Parvularia, Marco para la Buena Enseñanza
+    """
+    
+    def __init__(self):
+        super().__init__('chile', 'República de Chile')
+        self.diseno_curricular = self.cargar_diseno_curricular()
+    
+    def cargar_diseno_curricular(self):
+        return {
+            'nombre': 'Bases Curriculares de la Educación Parvularia (2018)',
+            'organismo': 'Ministerio de Educación de Chile - Subsecretaría de Educación Parvularia',
+            'nivel': 'Educación Parvularia',
+            'niveles': {
+                'sala_cuna': '0-2 años (Nivel Sala Cuna)',
+                'nivel_medio': '2-4 años (Nivel Medio)',
+                'nivel_transicion': '4-6 años (Nivel Transición)'
+            },
+            'ambitos_experiencias': [
+                'Desarrollo personal y social',
+                'Comunicación integral',
+                'Interacción y comprensión del entorno'
+            ],
+            'nucleos_aprendizaje': {
+                'desarrollo_personal_social': [
+                    'Identidad y autonomía',
+                    'Convivencia y ciudadanía',
+                    'Corporalidad y movimiento'
+                ],
+                'comunicacion_integral': [
+                    'Lenguaje verbal',
+                    'Lenguajes artísticos'
+                ],
+                'interaccion_entorno': [
+                    'Exploración del entorno natural',
+                    'Comprensión del entorno sociocultural',
+                    'Pensamiento matemático'
+                ]
+            },
+            'objetivos_aprendizaje': 'OA organizados por núcleo y nivel',
+            'principios_pedagogicos': [
+                'Bienestar',
+                'Singularidad',
+                'Potenciación',
+                'Relación',
+                'Unidad',
+                'Significado',
+                'Juego',
+                'Actividad'
+            ],
+            'caracteristicas_distintivas': [
+                'Estructura en ámbitos y núcleos',
+                'Objetivos de Aprendizaje (OA) claros y progresivos',
+                'Énfasis en el juego y la actividad',
+                'Evaluación para el aprendizaje',
+                'Educación pública de calidad'
+            ]
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        """Genera planificación según Bases Curriculares chilenas"""
+        
+        planificacion = {
+            'titulo': 'PLANIFICACIÓN PEDAGÓGICA - Educación Parvularia',
+            
+            'identificacion': {
+                'establecimiento': '[Nombre del jardín infantil/escuela]',
+                'nivel': inputs.get('edad'),
+                'numero_ninos': inputs.get('num_estudiantes'),
+                'educadora': '[Nombre]',
+                'tecnica': '[Nombre técnico]',
+                'fecha': inputs.get('fecha'),
+                'duracion': inputs.get('duracion')
+            },
+            
+            'experiencia_aprendizaje': inputs.get('tema'),
+            
+            'fundamentacion': f"[Justificación de por qué trabajar {inputs.get('tema')} con este grupo]",
+            
+            'curriculum': {
+                'ambito': '[Ámbito de experiencias]',
+                'nucleo': '[Núcleo de aprendizaje]',
+                'OA': '[Objetivo de Aprendizaje de las Bases Curriculares]',
+                'indicadores': [
+                    '[Indicador 1]',
+                    '[Indicador 2]'
+                ]
+            },
+            
+            'aprendizajes_esperados_especificos': [
+                '[AE 1: Qué se espera que los niños logren]',
+                '[AE 2: Qué se espera que los niños logren]'
+            ],
+            
+            'organizacion_ambiente': {
+                'espacio': '[Cómo se organiza la sala/espacio]',
+                'materiales': self.listar_materiales_chile(inputs),
+                'agrupacion': '[Individual/Pequeños grupos/Grupo grande]'
+            },
+            
+            'desarrollo_experiencia': self.estructurar_momentos_chile(inputs),
+            
+            'evaluacion': {
+                'tipo': 'Evaluación formativa',
+                'instrumento': '[Lista de cotejo/Escala de apreciación/Registro anecdótico]',
+                'criterios': '[Qué se evaluará]',
+                'evidencias': '[Qué producirán o demostrarán los niños]'
+            },
+            
+            'recursos_pedagogicos': {
+                'materiales_didacticos': ['[Material 1]', '[Material 2]'],
+                'tic': '[Si se usa tecnología]',
+                'otros': ['[Recurso adicional]']
+            }
+        }
+        
+        return planificacion
+    
+    def estructurar_momentos_chile(self, inputs):
+        """Estructura según momentos pedagógicos chilenos"""
+        return {
+            'inicio': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Motivar, activar conocimientos previos, presentar OA',
+                'actividades': [
+                    'Saludo y bienvenida',
+                    'Activación de conocimientos previos',
+                    'Presentación de la experiencia',
+                    'Comunicación del objetivo de aprendizaje'
+                ],
+                'estrategias': '[Estrategias específicas]'
+            },
+            
+            'desarrollo': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Construcción de aprendizajes',
+                'actividades': self.generar_experiencia_desarrollo(inputs),
+                'mediacion_educadora': [
+                    '[Cómo la educadora media el aprendizaje]',
+                    '[Preguntas mediadoras]',
+                    '[Retroalimentación]'
+                ],
+                'atencion_diversidad': '[Estrategias DUA si aplica]'
+            },
+            
+            'cierre': {
+                'tiempo': '[X] minutos',
+                'proposito': 'Retroalimentar, consolidar, proyectar',
+                'actividades': [
+                    'Recapitulación de lo aprendido',
+                    'Autoevaluación y coevaluación',
+                    'Retroalimentación de la educadora',
+                    'Proyección hacia nuevos aprendizajes'
+                ],
+                'preguntas_metacognitivas': [
+                    '¿Qué aprendimos hoy?',
+                    '¿Cómo lo aprendimos?',
+                    '¿Para qué nos sirve?'
+                ]
+            }
+        }
+    
+    def generar_experiencia_desarrollo(self, inputs):
+        return [
+            '[Experiencia de aprendizaje centrada en el niño]',
+            '[Basada en el juego y la exploración]'
+        ]
+    
+    def listar_materiales_chile(self, inputs):
+        return [
+            '[Material didáctico 1]',
+            '[Material concreto]',
+            '[Material del entorno]'
+        ]
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Bases Curriculares con ámbitos, núcleos y Objetivos de Aprendizaje claros',
+            'caracteristicas': [
+                'Estructura curricular muy definida',
+                'Objetivos de Aprendizaje progresivos',
+                'Énfasis en evaluación para el aprendizaje',
+                'Principios pedagógicos como fundamento'
+            ]
+        }
+
+
+class AgenteVenezuela(AgenteNacionalBase):
+    """Agente Venezuela - Implementación simplificada"""
+    
+    def __init__(self):
+        super().__init__('venezuela', 'República Bolivariana de Venezuela')
+        self.diseno_curricular = {
+            'nombre': 'Currículo de Educación Inicial Bolivariana',
+            'areas_aprendizaje': [
+                'Formación personal, social y comunicación',
+                'Relación con el ambiente'
+            ]
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        return {
+            'titulo': 'PLAN DE ACTIVIDADES - Educación Inicial Bolivariana',
+            'contenido': '[Planificación según currículo venezolano]'
+        }
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Educación Bolivariana con énfasis en valores y participación comunitaria'
+        }
+
+
+class AgenteArgentina(AgenteNacionalBase):
+    """Agente Argentina - Implementación simplificada"""
+    
+    def __init__(self):
+        super().__init__('argentina', 'República Argentina')
+        self.diseno_curricular = {
+            'nombre': 'Diseños Curriculares Jurisdiccionales (varían por provincia)',
+            'nivel': 'Nivel Inicial',
+            'salas': ['Sala de 3', 'Sala de 4', 'Sala de 5']
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        return {
+            'titulo': 'PLANIFICACIÓN DIDÁCTICA - Nivel Inicial',
+            'contenido': '[Planificación según diseño curricular jurisdiccional]'
+        }
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Educación pública federal con diseños curriculares provinciales'
+        }
+
+
+class AgenteMexico(AgenteNacionalBase):
+    """Agente México - Implementación simplificada"""
+    
+    def __init__(self):
+        super().__init__('mexico', 'Estados Unidos Mexicanos')
+        self.diseno_curricular = {
+            'nombre': 'Programa de Educación Preescolar (PEP)',
+            'campos_formativos': [
+                'Lenguaje y comunicación',
+                'Pensamiento matemático',
+                'Exploración y comprensión del mundo natural y social',
+                'Artes',
+                'Educación socioemocional',
+                'Educación física'
+            ]
+        }
+    
+    def generar_planificacion_nacional(self, inputs):
+        return {
+            'titulo': 'SITUACIÓN DE APRENDIZAJE - Educación Preescolar',
+            'contenido': '[Planificación según PEP y Campos Formativos]'
+        }
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Programa por Campos Formativos con enfoque por competencias'
+        }
+
+
+class AgenteGenericoLatam(AgenteNacionalBase):
+    """Agente genérico para países sin agente específico"""
+    
+    def __init__(self, pais):
+        super().__init__(pais, f'País: {pais}')
+    
+    def generar_planificacion_nacional(self, inputs):
+        return {
+            'titulo': f'PLANIFICACIÓN - Educación Inicial ({self.pais})',
+            'nota': f'Agente genérico latinoamericano - Adaptar según normativa de {self.pais}',
+            'contenido': '[Planificación genérica latinoamericana]'
+        }
+    
+    def describir_enfoque(self):
+        return {
+            'distintivo': 'Enfoque latinoamericano genérico con valores regionales'
+        }
+
+
+# ============================================================================
+# AGENTES REGIONALES (EEUU Y CHINA)
+# ============================================================================
+
+class AgenteEEUU:
+    """Agente Estados Unidos - Ya definido anteriormente"""
+    def __init__(self):
+        self.template = TemplateEEUU()
+    
+    def generar_planificacion(self, inputs):
+        return self.template.generar(
+            tema=inputs['tema'],
+            objetivos=inputs['objetivos'],
+            competencias=inputs['competencias'],
+            num_estudiantes=inputs.get('num_estudiantes', 20)
+        )
+
+
+class AgenteChina:
+    """Agente China - Ya definido anteriormente"""
+    def __init__(self):
+        self.template = TemplateChina()
+    
+    def generar_planificacion(self, inputs):
+        return self.template.generar(
+            tema=inputs['tema'],
+            objetivos=inputs['objetivos'],
+            competencias=inputs['competencias'],
+            num_estudiantes=inputs.get('num_estudiantes', 30)
+        )
+
+
+# ============================================================================
+# CLASES AUXILIARES
+# ============================================================================
+
+class AnalizadorContexto:
+    """Analiza contexto cultural y socioeconómico"""
+    def analizar_cultura(self, pais, descripcion):
+        return {
+            'pais': pais,
+            'caracteristicas': []
+        }
+
+
+class EvaluadorCalidad:
+    """Evalúa calidad de planificaciones"""
+    def evaluar(self, planificacion):
+        return {
+            'score': 90,
+            'alineacion_curricular': 'Alta',
+            'pertinencia_cultural': 'Alta',
+            'viabilidad': 'Alta',
+            'sugerencias': []
+        }
+
+
+# ============================================================================
+# EJEMPLO DE USO DEL SISTEMA COMPLETO
+# ============================================================================
+
+if __name__ == "__main__":
+    
+    print("="*80)
+    print("🌍 SISTEMA ORQUESTADOR MULTILINGÜE DE EDUCACIÓN INFANTIL")
+    print("="*80)
+    
+    # Crear instancia del Orquestador Maestro
+    orquestador = OrquestadorMaestro()
+    
+    # EJEMPLO 1: Solicitud para Perú
+    print("\n\n📍 EJEMPLO 1: PLANIFICACIÓN PARA PERÚ")
+    print("-"*80)
+    
+    inputs_peru = {
+        'pais': 'peru',
+        'tema': 'Los animales de la selva peruana',
+        'edad': '4-5',
+        'duracion': 45,
+        'num_estudiantes': 25,
+        'objetivos': [
+            'Conocer animales de la selva peruana',
+            'Valorar la biodiversidad',
+            'Desarrollar expresión oral'
+        ],
+        'competencias': ['Comunicación', 'Ciencia y Tecnología', 'Personal Social'],
+        'recursos': 'materiales_basicos',
+        'contexto_adicional': 'Zona urbana de Lima, niños hispanohablantes'
+    }
+    
+    resultado_peru = orquestador.generar_planificacion_global(inputs_peru)
+    
+    print("\n✅ Planificación para Perú generada")
+    print(f"   Agente usado: Perú (MINEDU)")
+    print(f"   Marco: Currículo Nacional")
+    
+    # EJEMPLO 2: Solicitud para China
+    print("\n\n📍 EJEMPLO 2: PLANIFICACIÓN PARA CHINA")
+    print("-"*80)
+    
+    inputs_china = {
+        'estilo_pedagogico': 'china',
+        'tema': '认识数字 (Reconocimiento de números)',
+        'edad': '5-6',
+        'duracion': 45,
+        'num_estudiantes': 35,
+        'objetivos': ['Identificar números 1-10', 'Escribir números correctamente'],
+        'competencias': ['Matemática'],
+        'recursos': 'completos'
+    }
+    
+    resultado_china = orquestador.generar_planificacion_global(inputs_china)
+    
+    print("\n✅ Planificación para China generada")
+    print(f"   Agente usado: China")
+    
+    # EJEMPLO 3: Solicitud para Colombia
+    print("\n\n📍 EJEMPLO 3: PLANIFICACIÓN PARA COLOMBIA")
+    print("-"*80)
+    
+    inputs_colombia = {
+        'pais': 'colombia',
+        'tema': 'Explorando los sonidos de la naturaleza',
+        'edad': '3-4',
+        'duracion': 60,
+        'num_estudiantes': 20,
+        'objetivos': [
+            'Explorar sonidos del entorno',
+            'Desarrollar escucha activa',
+            'Expresarse mediante lenguajes artísticos'
+        ],
+        'competencias': ['Comunicativa', 'Artística', 'Cognitiva']
+    }
+    
+    resultado_colombia = orquestador.generar_planificacion_global(inputs_colombia)
+    
+    print("\n✅ Planificación para Colombia generada")
+    print(f"   Agente usado: Colombia (MEN)")
+    print(f"   Marco: Bases Curriculares para Educación Inicial")
+    
+    print("\n" + "="*80)
+    print("🎓 SISTEMA COMPLETADO")
+    print("="*80)
+```
+
+---
+
+## 📊 Diagrama de Arquitectura
+```
+┌─────────────────────────────────────────────────────────────┐
+│         🌍 ORQUESTADOR MAESTRO MULTILINGÜE                  │
+│    (PhD Educación, Experto Global, Multilingüe)            │
+│                                                              │
+│  • Conocimiento de 50+ países                               │
+│  • Miles de planes curriculares analizados                  │
+│  • Teorías pedagógicas globales                             │
+│  • Mejores prácticas mundiales                              │
+└──────────────────┬──────────────────────────────────────────┘
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐    ┌────────────────┐    ┌──────────────────────┐
+│  🇺🇸 AGENTE   │    │  🇨🇳 AGENTE    │    │ 🌎 ORQUESTADOR       │
+│     EEUU      │    │     CHINA      │    │   LATINOAMÉRICA      │
+│               │    │                │    │                      │
+│ • Common Core │    │ • 课程标准     │    │ • Coordina 6 países  │
+│ • DAP         │    │ • Estructurado │    │ • Conoce DCN         │
+│ • Play-based  │    │ • Repetición   │    │ • Valores regionales │
+└───────────────┘    └────────────────┘    └──────┬───────────────┘
+                                                   │
+                            ┌──────────────────────┴────────────┐
+                            │                                   │
+              ┌─────────────┼─────────────┬─────────────────────┤
+              │             │             │                     │
+              ▼             ▼             ▼                     ▼
+        ┌─────────┐   ┌──────────┐  ┌─────────┐         ┌──────────┐
+        │ 🇵🇪 PERÚ │   │🇨🇴COLOMBIA│  │🇨🇱 CHILE │   ...   │🇲🇽MÉXICO │
+        │         │   │          │  │         │         │          │
+        │ MINEDU  │   │   MEN    │  │ MinEduc │         │   SEP    │
+        │ CN 2016 │   │ Bases CI │  │ Bases CE│         │   PEP    │
+        │ Comp.   │   │ 4 Pilares│  │ Ámbitos │         │  Campos  │
+        └─────────┘   └──────────┘  └─────────┘         └
