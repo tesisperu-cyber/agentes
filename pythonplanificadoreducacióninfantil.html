@@ -1,0 +1,906 @@
+🤖 SISTEMA ORQUESTADOR CON CREWAI
+Implementación Completa del Sistema Multi-Agente
+python# ============================================================================
+# INSTALACIÓN DE DEPENDENCIAS
+# ============================================================================
+
+"""
+pip install crewai crewai-tools
+pip install langchain-openai
+pip install python-dotenv
+"""
+
+# ============================================================================
+# IMPORTS
+# ============================================================================
+
+from crewai import Agent, Task, Crew, Process
+from crewai.tools import BaseTool
+from typing import Type, Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+import json
+from datetime import datetime
+
+
+# ============================================================================
+# HERRAMIENTAS PERSONALIZADAS (TOOLS)
+# ============================================================================
+
+class CurriculoInputSchema(BaseModel):
+    """Schema de entrada para la herramienta de currículo"""
+    pais: str = Field(..., description="Nombre del país (ej: peru, colombia, chile)")
+    nivel: str = Field(..., description="Nivel educativo (ej: 3-4 años, 4-5 años)")
+
+
+class CurriculumDatabaseTool(BaseTool):
+    """Herramienta para acceder a base de conocimiento curricular"""
+    name: str = "curriculum_database"
+    description: str = "Accede a la base de datos de currículos nacionales y diseños curriculares por país"
+    args_schema: Type[BaseModel] = CurriculoInputSchema
+    
+    def _run(self, pais: str, nivel: str) -> str:
+        """Ejecuta la consulta al currículo"""
+        curriculos = {
+            'peru': {
+                'nombre': 'Currículo Nacional de Educación Básica (2016)',
+                'organismo': 'MINEDU',
+                'areas': ['Personal Social', 'Psicomotriz', 'Comunicación', 'Matemática', 'Ciencia y Tecnología'],
+                'competencias_clave': [
+                    'Construye su identidad',
+                    'Se comunica oralmente en su lengua materna',
+                    'Resuelve problemas de cantidad',
+                    'Indaga mediante métodos científicos'
+                ],
+                'enfoques': ['Enfoque por competencias', 'Enfoque intercultural', 'Enfoque de derechos'],
+                'estructura': 'Competencias → Capacidades → Desempeños'
+            },
+            'colombia': {
+                'nombre': 'Bases Curriculares para la Educación Inicial (2017)',
+                'organismo': 'MEN - Ministerio de Educación Nacional',
+                'pilares': ['El juego', 'El arte', 'La literatura', 'La exploración del medio'],
+                'dimensiones': ['Personal y social', 'Corporal', 'Comunicativa', 'Artística', 'Cognitiva'],
+                'enfoques': ['Enfoque de derechos', 'Atención integral'],
+                'estructura': 'Pilares → Dimensiones → Experiencias significativas'
+            },
+            'chile': {
+                'nombre': 'Bases Curriculares de Educación Parvularia (2018)',
+                'organismo': 'Ministerio de Educación de Chile',
+                'ambitos': ['Desarrollo personal y social', 'Comunicación integral', 'Interacción y comprensión del entorno'],
+                'nucleos': [
+                    'Identidad y autonomía', 'Convivencia y ciudadanía', 'Corporalidad y movimiento',
+                    'Lenguaje verbal', 'Lenguajes artísticos',
+                    'Exploración del entorno natural', 'Pensamiento matemático'
+                ],
+                'estructura': 'Ámbitos → Núcleos → Objetivos de Aprendizaje (OA)'
+            },
+            'mexico': {
+                'nombre': 'Programa de Educación Preescolar (PEP)',
+                'organismo': 'SEP - Secretaría de Educación Pública',
+                'campos_formativos': [
+                    'Lenguaje y comunicación', 'Pensamiento matemático',
+                    'Exploración y comprensión del mundo natural y social',
+                    'Artes', 'Educación socioemocional', 'Educación física'
+                ],
+                'estructura': 'Campos formativos → Organizadores curriculares → Aprendizajes esperados'
+            },
+            'argentina': {
+                'nombre': 'Diseños Curriculares Jurisdiccionales - Nivel Inicial',
+                'organismo': 'Ministerios provinciales',
+                'areas': ['Formación Personal y Social', 'Juego', 'Lenguaje', 'Matemática', 'Ambiente Natural y Social', 'Lenguajes Artísticos'],
+                'estructura': 'Áreas → Contenidos → NAP (Núcleos de Aprendizajes Prioritarios)'
+            },
+            'venezuela': {
+                'nombre': 'Currículo de Educación Inicial Bolivariana',
+                'organismo': 'Ministerio del Poder Popular para la Educación',
+                'areas': ['Formación personal, social y comunicación', 'Relación con el ambiente'],
+                'estructura': 'Áreas → Componentes → Aprendizajes a ser alcanzados'
+            }
+        }
+        
+        curriculo = curriculos.get(pais.lower(), {})
+        if not curriculo:
+            return f"Currículo no encontrado para {pais}"
+        
+        return json.dumps(curriculo, indent=2, ensure_ascii=False)
+
+
+class PedagogicalKnowledgeTool(BaseTool):
+    """Herramienta de conocimiento pedagógico global"""
+    name: str = "pedagogical_knowledge"
+    description: str = "Accede a conocimiento pedagógico global: teorías, mejores prácticas, investigaciones"
+    
+    def _run(self, query: str = "") -> str:
+        """Retorna conocimiento pedagógico"""
+        conocimiento = {
+            'teorias_principales': {
+                'piaget': 'Constructivismo cognitivo - aprendizaje por etapas',
+                'vygotsky': 'Teoría sociocultural - zona de desarrollo próximo',
+                'montessori': 'Aprendizaje autodirigido en ambiente preparado',
+                'reggio_emilia': 'El niño como protagonista, documentación pedagógica',
+                'bruner': 'Aprendizaje por descubrimiento, andamiaje',
+                'freire': 'Pedagogía crítica, educación liberadora'
+            },
+            'mejores_practicas': [
+                'Aprendizaje basado en el juego',
+                'Diferenciación pedagógica',
+                'Evaluación formativa',
+                'Aprendizaje activo y experiencial',
+                'Integración curricular',
+                'Atención a la diversidad',
+                'Participación familiar',
+                'Desarrollo socioemocional'
+            ],
+            'investigaciones_clave': [
+                'OECD Early Learning Framework (2020)',
+                'UNESCO Guidelines for Inclusion (2019)',
+                'CASEL Framework - Aprendizaje socioemocional (2020)',
+                'High/Scope Perry Preschool Study - Impacto a largo plazo',
+                'Efectos del juego en el desarrollo cognitivo (Lillard et al.)'
+            ],
+            'principios_universales': [
+                'El juego es fundamental para el aprendizaje',
+                'Cada niño aprende a su propio ritmo',
+                'El ambiente es el tercer maestro',
+                'La familia es parte esencial del proceso',
+                'La evaluación debe ser formativa y continua',
+                'La cultura y contexto importan'
+            ]
+        }
+        return json.dumps(conocimiento, indent=2, ensure_ascii=False)
+
+
+class ContextAnalyzerTool(BaseTool):
+    """Herramienta para analizar contexto cultural y socioeconómico"""
+    name: str = "context_analyzer"
+    description: str = "Analiza contexto cultural, socioeconómico y recursos disponibles"
+    
+    def _run(self, pais: str = "", recursos: str = "basicos") -> str:
+        """Analiza el contexto"""
+        analisis = {
+            'contexto_cultural': f'Contexto de {pais}: valores comunitarios, diversidad cultural',
+            'recursos_disponibles': recursos,
+            'recomendaciones': [
+                'Usar materiales del entorno',
+                'Aprovechar la creatividad docente',
+                'Involucrar a las familias',
+                'Adaptar actividades al contexto local'
+            ]
+        }
+        return json.dumps(analisis, indent=2, ensure_ascii=False)
+
+
+# ============================================================================
+# AGENTES DEL SISTEMA
+# ============================================================================
+
+def crear_agente_orquestador_maestro():
+    """Crea el Agente Orquestador Maestro"""
+    return Agent(
+        role='Orquestador Maestro de Educación Infantil Global',
+        goal='Coordinar y sintetizar el mejor plan de clase utilizando conocimiento pedagógico global y experiencia de múltiples sistemas educativos',
+        backstory="""Eres un PhD en Educación Infantil con 30 años de experiencia internacional.
+        Has sido asesor de ministerios de educación en 20+ países. Has leído y analizado miles de 
+        planes curriculares de todo el mundo. Dominas inglés, español, chino y portugués.
+        
+        Tu experiencia incluye:
+        - Diseño de políticas educativas nacionales
+        - Evaluación de sistemas educativos (OCDE, UNESCO)
+        - Investigación en pedagogía comparada
+        - Formación de formadores en múltiples países
+        - Conocimiento profundo de teorías pedagógicas (Piaget, Vygotsky, Montessori, Reggio, Freire)
+        
+        Tu misión es garantizar que cada planificación sea:
+        1. Pedagógicamente sólida (basada en investigación)
+        2. Culturalmente pertinente (respeta el contexto)
+        3. Curricularmente alineada (sigue marcos oficiales)
+        4. Prácticamente viable (puede implementarse)
+        5. De alta calidad (excelencia educativa)
+        """,
+        verbose=True,
+        allow_delegation=True,
+        tools=[PedagogicalKnowledgeTool(), ContextAnalyzerTool()]
+    )
+
+
+def crear_agente_eeuu():
+    """Crea el Agente especializado en EEUU"""
+    return Agent(
+        role='Especialista en Educación Infantil de Estados Unidos',
+        goal='Crear lesson plans siguiendo el modelo estadounidense: play-based, centros de aprendizaje, y Common Core',
+        backstory="""Eres una Early Childhood Education specialist con certificación NAEYC.
+        Tienes maestría en Early Childhood Education de una universidad estadounidense.
+        Conoces a fondo:
+        - Common Core State Standards
+        - DAP (Developmentally Appropriate Practice)
+        - Play-based learning approach
+        - Learning centers methodology
+        - Portfolio assessment
+        - NAEYC guidelines
+        
+        Tu especialidad es crear lesson plans que:
+        - Priorizan el juego como vehículo de aprendizaje
+        - Ofrecen elección y autonomía a los niños
+        - Utilizan centros de aprendizaje rotativos
+        - Diferencian por nivel de desarrollo
+        - Documentan con fotos y observaciones
+        - Conectan con las familias mediante tecnología
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_china():
+    """Crea el Agente especializado en China"""
+    return Agent(
+        role='Especialista en Educación Infantil de China',
+        goal='Crear planes de clase (课时计划) siguiendo el modelo chino: estructurado, académico, con práctica repetitiva',
+        backstory="""Eres un maestro experimentado (教师) del sistema educativo chino.
+        Tienes formación en pedagogía china y conoces el sistema a profundidad.
+        
+        Tu experiencia incluye:
+        - Currículos de kindergarten chino (幼儿园课程)
+        - Metodología de enseñanza directa
+        - Práctica repetitiva y memorización
+        - Disciplina y estructura en el aula
+        - Evaluación continua y comparativa
+        - Preparación académica temprana
+        
+        Tu método se caracteriza por:
+        - Estructura rígida minuto a minuto
+        - Enseñanza directa y demostración del maestro
+        - Práctica colectiva e individual
+        - Corrección inmediata
+        - Énfasis en matemáticas y lenguaje desde temprana edad
+        - Uniformidad en materiales y actividades
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_orquestador_latam():
+    """Crea el Agente Orquestador de Latinoamérica"""
+    return Agent(
+        role='Orquestador Regional de Educación Infantil Latinoamericana',
+        goal='Coordinar agentes nacionales de Latinoamérica y sintetizar la mejor planificación según el país específico',
+        backstory="""Eres un experto en educación infantil latinoamericana con experiencia en toda la región.
+        Has trabajado con ministerios de educación de múltiples países latinos.
+        
+        Conoces a fondo:
+        - Diseños curriculares de 10+ países latinoamericanos
+        - Similitudes y diferencias entre sistemas educativos de la región
+        - Valores culturales compartidos (familia, comunidad, solidaridad)
+        - Desafíos comunes (recursos limitados, diversidad cultural, brecha urbano-rural)
+        - Fortalezas regionales (calidez docente, creatividad, participación familiar)
+        
+        Tu rol es:
+        1. Identificar el país específico de la solicitud
+        2. Delegar al agente nacional correspondiente
+        3. Enriquecer con perspectiva regional
+        4. Agregar comparativa con otros países latinos
+        5. Asegurar pertinencia cultural y viabilidad práctica
+        """,
+        verbose=True,
+        allow_delegation=True,
+        tools=[CurriculumDatabaseTool(), ContextAnalyzerTool()]
+    )
+
+
+def crear_agente_peru():
+    """Crea el Agente especializado en Perú"""
+    return Agent(
+        role='Especialista en Educación Inicial del Perú (MINEDU)',
+        goal='Crear planificaciones siguiendo el Currículo Nacional de Educación Básica del Perú (2016)',
+        backstory="""Eres un docente de Educación Inicial del Perú con especialización en el MINEDU.
+        Conoces a profundidad el Currículo Nacional y el Programa Curricular de Educación Inicial.
+        
+        Tu experiencia incluye:
+        - Currículo Nacional de Educación Básica (2016)
+        - Enfoque por competencias (competencias → capacidades → desempeños)
+        - Áreas curriculares (Personal Social, Psicomotriz, Comunicación, Matemática, Ciencia)
+        - Enfoques transversales (interculturalidad, derechos, inclusión)
+        - Educación Intercultural Bilingüe (EIB)
+        - Planificación por momentos pedagógicos (inicio, desarrollo, cierre)
+        - Evaluación formativa
+        
+        Tu especialidad es crear:
+        - Planificaciones con competencias, capacidades y desempeños claros
+        - Actividades que respeten la diversidad cultural peruana
+        - Experiencias que integren lenguas originarias cuando corresponda
+        - Evaluación basada en evidencias de aprendizaje
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_colombia():
+    """Crea el Agente especializado en Colombia"""
+    return Agent(
+        role='Especialista en Educación Inicial de Colombia (MEN)',
+        goal='Crear planeaciones pedagógicas siguiendo las Bases Curriculares de Colombia y los 4 pilares',
+        backstory="""Eres un agente educativo de Colombia especializado en Primera Infancia.
+        Conoces las Bases Curriculares para la Educación Inicial (2017) del MEN.
+        
+        Tu experiencia incluye:
+        - Bases Curriculares para la Educación Inicial y Preescolar (2017)
+        - Los 4 pilares: Juego, Arte, Literatura, Exploración del medio
+        - Dimensiones del desarrollo (personal-social, corporal, comunicativa, artística, cognitiva)
+        - Enfoque de derechos y atención integral
+        - Modalidades (institucional, familiar, comunitaria)
+        - Seguimiento al desarrollo infantil
+        
+        Tu especialidad es crear:
+        - Experiencias pedagógicas basadas en los 4 pilares
+        - Planeaciones que integren múltiples dimensiones
+        - Actividades que promuevan el protagonismo de niños y niñas
+        - Evaluación cualitativa del desarrollo
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_chile():
+    """Crea el Agente especializado en Chile"""
+    return Agent(
+        role='Educadora de Párvulos de Chile',
+        goal='Crear planificaciones pedagógicas siguiendo las Bases Curriculares de Educación Parvularia de Chile (2018)',
+        backstory="""Eres una Educadora de Párvulos titulada en Chile con experiencia en el sistema público.
+        Conoces las Bases Curriculares de Educación Parvularia (2018).
+        
+        Tu experiencia incluye:
+        - Bases Curriculares de Educación Parvularia (2018)
+        - Estructura: Ámbitos → Núcleos → Objetivos de Aprendizaje (OA)
+        - 3 Ámbitos (Desarrollo personal y social, Comunicación integral, Interacción con el entorno)
+        - 8 Núcleos de aprendizaje
+        - Principios pedagógicos (bienestar, singularidad, potenciación, relación, etc.)
+        - Evaluación para el aprendizaje
+        - Marco para la Buena Enseñanza de Educación Parvularia
+        
+        Tu especialidad es crear:
+        - Planificaciones con OA claramente identificados
+        - Experiencias de aprendizaje centradas en el niño
+        - Evaluación formativa con instrumentos variados
+        - Ambientes educativos bien organizados
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_mexico():
+    """Crea el Agente especializado en México"""
+    return Agent(
+        role='Especialista en Educación Preescolar de México (SEP)',
+        goal='Crear situaciones de aprendizaje siguiendo el Programa de Educación Preescolar (PEP) de México',
+        backstory="""Eres un docente de Educación Preescolar de México con formación en la SEP.
+        Conoces el Programa de Educación Preescolar (PEP) y el modelo educativo mexicano.
+        
+        Tu experiencia incluye:
+        - Programa de Educación Preescolar (PEP)
+        - 6 Campos Formativos (Lenguaje, Pensamiento matemático, Exploración del mundo, Artes, Socioemocional, Educación física)
+        - Organizadores curriculares
+        - Aprendizajes esperados
+        - Enfoque por competencias
+        - Ambientes de aprendizaje
+        
+        Tu especialidad es crear:
+        - Situaciones de aprendizaje significativas
+        - Planeaciones por campos formativos
+        - Actividades que desarrollen competencias
+        - Evaluación mediante evidencias
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_argentina():
+    """Crea el Agente especializado en Argentina"""
+    return Agent(
+        role='Docente de Nivel Inicial de Argentina',
+        goal='Crear planificaciones didácticas siguiendo el Diseño Curricular jurisdiccional argentino',
+        backstory="""Eres un docente del Nivel Inicial en Argentina con formación en educación pública.
+        Conoces los Diseños Curriculares provinciales y los NAP.
+        
+        Tu experiencia incluye:
+        - Diseños Curriculares Jurisdiccionales (varían por provincia)
+        - NAP (Núcleos de Aprendizajes Prioritarios)
+        - Sistema de salas (Sala de 3, 4, 5)
+        - Áreas de conocimiento
+        - El juego como eje central
+        - Educación pública federal
+        
+        Tu especialidad es crear:
+        - Planificaciones adaptadas al diseño provincial
+        - Secuencias didácticas por áreas
+        - Proyectos áulicos
+        - Evaluación contextualizada
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_venezuela():
+    """Crea el Agente especializado en Venezuela"""
+    return Agent(
+        role='Docente de Educación Inicial Bolivariana de Venezuela',
+        goal='Crear planes de actividades siguiendo el Currículo de Educación Inicial Bolivariana',
+        backstory="""Eres un docente del sistema de Educación Inicial Bolivariana de Venezuela.
+        Conoces el currículo oficial y el enfoque bolivariano.
+        
+        Tu experiencia incluye:
+        - Currículo de Educación Inicial Bolivariana
+        - Áreas de aprendizaje
+        - Enfoque bolivariano (valores, participación comunitaria)
+        - Atención integral
+        - Vinculación familia-escuela-comunidad
+        
+        Tu especialidad es crear:
+        - Planes integrales con enfoque comunitario
+        - Actividades que promuevan valores bolivarianos
+        - Participación activa de la familia
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool()]
+    )
+
+
+# ============================================================================
+# TAREAS (TASKS)
+# ============================================================================
+
+def crear_tarea_analisis_maestro(agente_orquestador, inputs_usuario):
+    """Tarea de análisis inicial por el Orquestador Maestro"""
+    return Task(
+        description=f"""Analiza la siguiente solicitud de planificación y determina la mejor estrategia:
+        
+        INPUTS DEL USUARIO:
+        {json.dumps(inputs_usuario, indent=2, ensure_ascii=False)}
+        
+        Tu análisis debe incluir:
+        1. Identificar la región/país objetivo
+        2. Detectar el idioma
+        3. Analizar el contexto cultural y socioeconómico
+        4. Evaluar recursos disponibles
+        5. Identificar el agente más apropiado para esta tarea
+        6. Proporcionar recomendaciones iniciales basadas en mejores prácticas globales
+        
+        Utiliza tu conocimiento pedagógico global y experiencia internacional.
+        Considera teorías pedagógicas relevantes (Piaget, Vygotsky, Montessori, etc.).
+        """,
+        agent=agente_orquestador,
+        expected_output="Análisis detallado en formato JSON con: región_detectada, pais_especifico, idioma, contexto_cultural, agente_recomendado, recomendaciones_globales"
+    )
+
+
+def crear_tarea_generacion_nacional(agente_nacional, inputs_enriquecidos, pais):
+    """Tarea de generación de planificación nacional"""
+    return Task(
+        description=f"""Genera una planificación de clase completa para {pais.upper()} siguiendo el diseño curricular oficial.
+        
+        INPUTS:
+        {json.dumps(inputs_enriquecidos, indent=2, ensure_ascii=False)}
+        
+        REQUISITOS:
+        1. Sigue ESTRICTAMENTE el formato y estructura curricular de {pais}
+        2. Usa la terminología oficial del país
+        3. Incluye todos los componentes requeridos por el marco curricular
+        4. Alinea con competencias/objetivos de aprendizaje oficiales
+        5. Respeta el contexto cultural y lingüístico
+        6. Asegura viabilidad práctica
+        7. Integra valores y enfoques transversales del país
+        
+        Consulta la base de datos curricular para obtener información actualizada.
+        """,
+        agent=agente_nacional,
+        expected_output=f"Planificación completa en el formato oficial de {pais}, lista para ser implementada por un docente"
+    )
+
+
+def crear_tarea_sintesis_final(agente_orquestador, planificacion_base):
+    """Tarea de síntesis y mejora final por el Orquestador Maestro"""
+    return Task(
+        description=f"""Revisa y mejora la siguiente planificación aplicando tu experiencia pedagógica global:
+        
+        PLANIFICACIÓN BASE:
+        {planificacion_base if isinstance(planificacion_base, str) else 'Ver planificación en contexto'}
+        
+        Tu trabajo es:
+        1. Verificar alineación con mejores prácticas pedagógicas globales
+        2. Asegurar inclusión de:
+           - Aprendizaje basado en el juego
+           - Diferenciación pedagógica
+           - Desarrollo socioemocional
+           - Participación familiar
+           - Evaluación formativa
+        3. Agregar perspectiva comparada (¿cómo se abordaría en otros países?)
+        4. Proporcionar recomendaciones expertas para la implementación
+        5. Sugerir recursos complementarios
+        6. Evaluar calidad general (1-100)
+        
+        No cambies la estructura curricular base, solo enriquece y mejora.
+        Mantén la pertinencia cultural.
+        """,
+        agent=agente_orquestador,
+        expected_output="Planificación mejorada con análisis de calidad, recomendaciones expertas, perspectiva comparada y recursos adicionales"
+    )
+
+
+# ============================================================================
+# FUNCIÓN PRINCIPAL: CREAR Y EJECUTAR CREW
+# ============================================================================
+
+def crear_crew_educacion_infantil(inputs_usuario: Dict[str, Any]) -> Crew:
+    """
+    Crea y configura el Crew completo según los inputs del usuario
+    """
+    
+    # Crear agente orquestador maestro
+    orquestador_maestro = crear_agente_orquestador_maestro()
+    
+    # Determinar región/país del input
+    pais = inputs_usuario.get('pais', '').lower()
+    estilo = inputs_usuario.get('estilo_pedagogico', '').lower()
+    
+    # Mapeo de país a región
+    paises_latam = ['peru', 'perú', 'colombia', 'chile', 'mexico', 'méxico', 
+                    'argentina', 'venezuela', 'ecuador', 'bolivia']
+    
+    # Identificar región
+    if estilo == 'eeuu' or pais == 'usa':
+        region = 'eeuu'
+        agente_regional = crear_agente_eeuu()
+    elif estilo == 'china' or pais == 'china':
+        region = 'china'
+        agente_regional = crear_agente_china()
+    elif any(p in pais for p in paises_latam) or estilo == 'latinoamerica':
+        region = 'latinoamerica'
+        agente_regional = crear_agente_orquestador_latam()
+        
+        # Crear agente nacional específico si aplica
+        agentes_nacionales = {
+            'peru': crear_agente_peru(),
+            'perú': crear_agente_peru(),
+            'colombia': crear_agente_colombia(),
+            'chile': crear_agente_chile(),
+            'mexico': crear_agente_mexico(),
+            'méxico': crear_agente_mexico(),
+            'argentina': crear_agente_argentina(),
+            'venezuela': crear_agente_venezuela()
+        }
+        agente_nacional = agentes_nacionales.get(pais)
+    else:
+        # Default: Latinoamérica
+        region = 'latinoamerica'
+        agente_regional = crear_agente_orquestador_latam()
+        agente_nacional = None
+    
+    # Crear tareas secuenciales
+    tareas = []
+    
+    # Tarea 1: Análisis inicial
+    tarea_analisis = crear_tarea_analisis_maestro(orquestador_maestro, inputs_usuario)
+    tareas.append(tarea_analisis)
+    
+    # Tarea 2: Generación de planificación
+    if region == 'latinoamerica' and agente_nacional:
+        # Usar agente nacional específico
+        tarea_generacion = crear_tarea_generacion_nacional(
+            agente_nacional, 
+            inputs_usuario, 
+            pais
+        )
+    else:
+        # Usar agente regional
+        tarea_generacion = Task(
+            description=f"""Genera una planificación completa siguiendo el estilo pedagógico {region.upper()}.
+            
+            INPUTS:
+            {json.dumps(inputs_usuario, indent=2, ensure_ascii=False)}
+            
+            Crea una planificación profesional, completa y lista para implementar.
+            """,
+            agent=agente_regional,
+            expected_output="Planificación completa en el formato del estilo pedagógico correspondiente"
+        )
+    tareas.append(tarea_generacion)
+    
+    # Tarea 3: Síntesis y mejora final
+    tarea_sintesis = Task(
+        description=f"""Revisa la planificación generada y mejórala con tu experiencia global.
+        
+        Aplica mejores prácticas internacionales.
+        Agrega perspectiva comparada.
+        Proporciona recomendaciones expertas.
+        Evalúa la calidad (0-100).
+        
+        FORMATO DE SALIDA:
+        {{
+            "planificacion_final": "...",
+            "calidad_score": 0-100,
+            "fortalezas": [...],
+            "areas_mejora": [...],
+            "recomendaciones_implementacion": [...],
+            "perspectiva_comparada": "...",
+            "recursos_complementarios": [...]
+        }}
+        """,
+        agent=orquestador_maestro,
+        expected_output="Documento final con planificación mejorada y análisis experto completo en formato JSON"
+    )
+    tareas.append(tarea_sintesis)
+    
+    # Crear y configurar Crew
+    crew = Crew(
+        agents=[orquestador_maestro, agente_regional] + ([agente_nacional] if region == 'latinoamerica' and agente_nacional else []),
+        tasks=tareas,
+        process=Process.sequential,  # Proceso secuencial
+        verbose=True
+    )
+    
+    return crew
+
+
+# ============================================================================
+# FUNCIÓN DE EJECUCIÓN
+# ============================================================================
+
+def generar_planificacion_global(inputs_usuario: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Función principal para generar planificación
+    
+    Args:
+        inputs_usuario: Diccionario con los inputs del usuario
+        
+    Returns:
+        Resultado completo de la planificación
+    """
+    
+    print("\n" + "="*80)
+    print("🌍 SISTEMA ORQUESTADOR MULTILINGÜE - CREWAI")
+    print("="*80)
+    print(f"\n📋 Procesando solicitud...")
+    print(f"   Tema: {inputs_usuario.get('tema')}")
+    print(f"   País: {inputs_usuario.get('pais', inputs_usuario.get('estilo_pedagogico'))}")
+    print(f"   Edad: {inputs_usuario.get('edad')}")
+    
+    # Crear crew
+    crew = crear_crew_educacion_infantil(inputs_usuario)
+    
+    # Ejecutar crew
+    print("\n🚀 Ejecutando sistema multi-agente...\n")
+    resultado = crew.kickoff()
+    
+    print("\n" + "="*80)
+    print("✅ PLANIFICACIÓN COMPLETADA")
+    print("="*80)
+    
+    return resultado
+
+
+# ============================================================================
+# EJEMPLOS DE USO
+# ============================================================================
+
+def ejemplo_peru():
+    """Ejemplo de planificación para Perú"""
+    print("\n" + "🇵🇪 " + "="*76)
+    print("EJEMPLO 1: PLANIFICACIÓN PARA PERÚ")
+    print("="*80 + "\n")
+    
+    inputs = {
+        'pais': 'peru',
+        'tema': 'Los animales de la selva peruana',
+        'edad': '4-5 años',
+        'duracion': 45,
+        'num_estudiantes': 25,
+        'objetivos': [
+            'Conocer animales de la selva amazónica',
+            'Valorar la biodiversidad peruana',
+            'Desarrollar expresión oral en castellano'
+        ],
+        'competencias': ['Comunicación', 'Ciencia y Tecnología', 'Personal Social'],
+        'recursos': 'materiales_basicos',
+        'contexto': 'Zona urbana de Lima, niños hispanohablantes'
+    }
+    
+    resultado = generar_planificacion_global(inputs)
+    return resultado
+
+
+def ejemplo_colombia():
+    """Ejemplo de planificación para Colombia"""
+    print("\n" + "🇨🇴 " + "="*76)
+    print("EJEMPLO 2: PLANIFICACIÓN PARA COLOMBIA")
+    print("="*80 + "\n")
+    
+    inputs = {
+        'pais': 'colombia',
+        'tema': 'Explorando sonidos de la naturaleza',
+        'edad': '3-4 años',
+        'duracion': 60,
+        'num_estudiantes': 20,
+        'objetivos': [
+            'Explorar sonidos del entorno natural',
+            'Desarrollar escucha activa',
+            'Expresarse mediante el arte'
+        ],
+        'competencias': ['Comunicativa', 'Artística', 'Cognitiva'],
+        'recursos': 'materiales_del_entorno',
+        'contexto': 'Jardín infantil en Bogotá'
+    }
+    
+    resultado = generar_planificacion_global(inputs)
+    return resultado
+
+
+def ejemplo_chile():
+    """Ejemplo de planificación para Chile"""
+    print("\n" + "🇨🇱 " + "="*76)
+    print("EJEMPLO 3: PLANIFICACIÓN PARA CHILE")
+    print("="*80 + "\n")
+    
+    inputs = {
+        'pais': 'chile',
+        'tema': 'Las formas geométricas en nuestro entorno',
+        'edad': '5-6 años',
+        'duracion': 90,
+        'num_estudiantes': 22,
+        'objetivos': [
+            'Identificar formas geométricas básicas',
+            'Relacionar formas con objetos cotidianos',
+            'Desarrollar pensamiento matemático'
+        ],
+        'competencias': ['Pensamiento matemático', 'Exploración del entorno'],
+        'recursos': 'materiales_variados',
+        'contexto': 'Nivel Transición 2 (NT2), jardín público en Santiago'
+    }
+    
+    resultado = generar_planificacion_global(inputs)
+    return resultado
+
+
+def ejemplo_eeuu():
+    """Ejemplo de planificación para EEUU"""
+    print("\n" + "🇺🇸 " + "="*76)
+    print("EJEMPLO 4: PLANIFICACIÓN PARA ESTADOS UNIDOS")
+    print("="*80 + "\n")
+    
+    inputs = {
+        'estilo_pedagogico': 'eeuu',
+        'tema': 'Community Helpers',
+        'edad': '4-5 años',
+        'duracion': 180,
+        'num_estudiantes': 18,
+        'objetivos': [
+            'Identify different community helpers',
+            'Understand how helpers support our community',
+            'Develop social awareness'
+        ],
+        'competencias': ['Social Studies', 'Language Arts', 'Social-Emotional'],
+        'recursos': 'completos',
+        'contexto': 'Pre-K classroom, diverse urban setting'
+    }
+    
+    resultado = generar_planificacion_global(inputs)
+    return resultado
+
+
+def ejemplo_china():
+    """Ejemplo de planificación para China"""
+    print("\n" + "🇨🇳 " + "="*76)
+    print("EJEMPLO 5: PLANIFICACIÓN PARA CHINA")
+    print("="*80 + "\n")
+    
+    inputs = {
+        'estilo_pedagogico': 'china',
+        'tema': '认识颜色 (Reconocimiento de colores)',
+        'edad': '3-4 años',
+        'duracion': 45,
+        'num_estudiantes': 30,
+        'objetivos': [
+            'Identificar 5 colores básicos',
+            'Nombrar colores en chino',
+            'Clasificar objetos por color'
+        ],
+        'competencias': ['Cognitiva', 'Lenguaje'],
+        'recursos': 'materiales_preparados',
+        'contexto': 'Kindergarten urbano en Beijing'
+    }
+    
+    resultado = generar_planificacion_global(inputs)
+    return resultado
+
+
+# ============================================================================
+# SCRIPT PRINCIPAL
+# ============================================================================
+
+if __name__ == "__main__":
+    """
+    Para ejecutar:
+    1. Instalar dependencias:
+       pip install crewai crewai-tools langchain-openai python-dotenv
+    
+    2. Configurar API key de OpenAI en .env:
+       OPENAI_API_KEY=tu-api-key-aqui
+    
+    3. Ejecutar:
+       python script_crewai.py
+    """
+    
+    # Configurar variables de entorno
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    # Verificar API key
+    if not os.getenv("OPENAI_API_KEY"):
+        print("⚠️  ERROR: No se encontró OPENAI_API_KEY")
+        print("   Por favor configura tu API key en un archivo .env")
+        exit(1)
+    
+    print("""
+    ╔════════════════════════════════════════════════════════════════════════════╗
+    ║                                                                            ║
+    ║          🌍 SISTEMA ORQUESTADOR MULTILINGÜE DE EDUCACIÓN INFANTIL          ║
+    ║                                                                            ║
+    ║                         Implementado con CrewAI                            ║
+    ║                                                                            ║
+    ╚════════════════════════════════════════════════════════════════════════════╝
+    """)
+    
+    # Menú de ejemplos
+    print("\n📚 Ejemplos disponibles:")
+    print("   1. Perú (MINEDU - Currículo Nacional)")
+    print("   2. Colombia (MEN - Bases Curriculares)")
+    print("   3. Chile (Bases Curriculares de Parvularia)")
+    print("   4. Estados Unidos (Play-based, Common Core)")
+    print("   5. China (Estructurado, académico)")
+    print("   0. Salir")
+    
+    opcion = input("\n👉 Selecciona un ejemplo (1-5): ").strip()
+    
+    if opcion == '1':
+        resultado = ejemplo_peru()
+    elif opcion == '2':
+        resultado = ejemplo_colombia()
+    elif opcion == '3':
+        resultado = ejemplo_chile()
+    elif opcion == '4':
+        resultado = ejemplo_eeuu()
+    elif opcion == '5':
+        resultado = ejemplo_china()
+    else:
+        print("\n👋 ¡Hasta luego!")
+        exit(0)
+    
+    # Mostrar resultado
+    print("\n" + "="*80)
+    print("📄 RESULTADO FINAL")
+    print("="*80)
+    print(resultado)
+    
+    # Guardar en archivo
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"planificacion_{timestamp}.txt"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(str(resultado))
+    
+    print(f"\n💾 Planificación guardada en: {filename}")
+    print("\n✨ ¡Proceso completado exitosamente!")
+
