@@ -1,0 +1,948 @@
+🌍 SISTEMA ORQUESTADOR MULTILINGÜE - GOOGLE COLAB
+Notebook Completo para Google Colab
+python# ============================================================================
+# CELDA 1: TÍTULO Y DESCRIPCIÓN
+# ============================================================================
+
+"""
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║      🌍 SISTEMA ORQUESTADOR MULTILINGÜE DE EDUCACIÓN INFANTIL              ║
+║                                                                            ║
+║                    Implementado con CrewAI en Colab                        ║
+║                                                                            ║
+║  Agentes:                                                                  ║
+║  • Orquestador Maestro Global (PhD, 30+ años experiencia)                 ║
+║  • Agente EEUU (Play-based, Common Core)                                  ║
+║  • Agente China (Estructurado, académico)                                 ║
+║  • Orquestador Latinoamérica                                              ║
+║    - Agente Perú (MINEDU)                                                 ║
+║    - Agente Colombia (MEN)                                                ║
+║    - Agente Chile (MinEduc)                                               ║
+║    - Agente México (SEP)                                                  ║
+║    - Agente Argentina                                                     ║
+║    - Agente Venezuela                                                     ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+"""
+
+print("✅ Notebook cargado correctamente")
+python# ============================================================================
+# CELDA 2: INSTALACIÓN DE DEPENDENCIAS
+# ============================================================================
+
+print("📦 Instalando dependencias...")
+print("="*80)
+
+!pip install -q crewai==0.28.8
+!pip install -q crewai-tools==0.1.6
+!pip install -q langchain-openai==0.0.5
+!pip install -q python-dotenv==1.0.0
+
+print("\n✅ Dependencias instaladas correctamente")
+python# ============================================================================
+# CELDA 3: CONFIGURACIÓN DE API KEY
+# ============================================================================
+
+import os
+from getpass import getpass
+
+print("🔑 CONFIGURACIÓN DE API KEY")
+print("="*80)
+print("\n⚠️  Necesitas una API key de OpenAI para usar este sistema")
+print("   Obtén tu key en: https://platform.openai.com/api-keys\n")
+
+# Solicitar API key de forma segura
+if 'OPENAI_API_KEY' not in os.environ:
+    api_key = getpass("👉 Ingresa tu OpenAI API Key: ")
+    os.environ['OPENAI_API_KEY'] = api_key
+    print("\n✅ API Key configurada correctamente")
+else:
+    print("✅ API Key ya está configurada")
+python# ============================================================================
+# CELDA 4: IMPORTS
+# ============================================================================
+
+print("📚 Importando librerías...")
+
+from crewai import Agent, Task, Crew, Process
+from crewai.tools import BaseTool
+from typing import Type, Optional, List, Dict, Any
+from pydantic import BaseModel, Field
+import json
+from datetime import datetime
+
+print("✅ Librerías importadas correctamente")
+python# ============================================================================
+# CELDA 5: HERRAMIENTAS PERSONALIZADAS (TOOLS)
+# ============================================================================
+
+print("🛠️  Configurando herramientas personalizadas...")
+
+# Schema de entrada para herramienta de currículo
+class CurriculoInputSchema(BaseModel):
+    """Schema de entrada para la herramienta de currículo"""
+    pais: str = Field(..., description="Nombre del país (ej: peru, colombia, chile)")
+    nivel: str = Field(..., description="Nivel educativo (ej: 3-4 años, 4-5 años)")
+
+
+class CurriculumDatabaseTool(BaseTool):
+    """Herramienta para acceder a base de conocimiento curricular"""
+    name: str = "curriculum_database"
+    description: str = "Accede a la base de datos de currículos nacionales y diseños curriculares por país"
+    args_schema: Type[BaseModel] = CurriculoInputSchema
+    
+    def _run(self, pais: str, nivel: str) -> str:
+        """Ejecuta la consulta al currículo"""
+        curriculos = {
+            'peru': {
+                'nombre': 'Currículo Nacional de Educación Básica (2016)',
+                'organismo': 'MINEDU',
+                'areas': ['Personal Social', 'Psicomotriz', 'Comunicación', 'Matemática', 'Ciencia y Tecnología'],
+                'competencias_clave': [
+                    'Construye su identidad',
+                    'Se comunica oralmente en su lengua materna',
+                    'Resuelve problemas de cantidad',
+                    'Indaga mediante métodos científicos'
+                ],
+                'enfoques': ['Enfoque por competencias', 'Enfoque intercultural', 'Enfoque de derechos'],
+                'estructura': 'Competencias → Capacidades → Desempeños'
+            },
+            'colombia': {
+                'nombre': 'Bases Curriculares para la Educación Inicial (2017)',
+                'organismo': 'MEN - Ministerio de Educación Nacional',
+                'pilares': ['El juego', 'El arte', 'La literatura', 'La exploración del medio'],
+                'dimensiones': ['Personal y social', 'Corporal', 'Comunicativa', 'Artística', 'Cognitiva'],
+                'enfoques': ['Enfoque de derechos', 'Atención integral'],
+                'estructura': 'Pilares → Dimensiones → Experiencias significativas'
+            },
+            'chile': {
+                'nombre': 'Bases Curriculares de Educación Parvularia (2018)',
+                'organismo': 'Ministerio de Educación de Chile',
+                'ambitos': ['Desarrollo personal y social', 'Comunicación integral', 'Interacción y comprensión del entorno'],
+                'nucleos': [
+                    'Identidad y autonomía', 'Convivencia y ciudadanía', 'Corporalidad y movimiento',
+                    'Lenguaje verbal', 'Lenguajes artísticos',
+                    'Exploración del entorno natural', 'Pensamiento matemático'
+                ],
+                'estructura': 'Ámbitos → Núcleos → Objetivos de Aprendizaje (OA)'
+            },
+            'mexico': {
+                'nombre': 'Programa de Educación Preescolar (PEP)',
+                'organismo': 'SEP - Secretaría de Educación Pública',
+                'campos_formativos': [
+                    'Lenguaje y comunicación', 'Pensamiento matemático',
+                    'Exploración y comprensión del mundo natural y social',
+                    'Artes', 'Educación socioemocional', 'Educación física'
+                ],
+                'estructura': 'Campos formativos → Organizadores curriculares → Aprendizajes esperados'
+            },
+            'argentina': {
+                'nombre': 'Diseños Curriculares Jurisdiccionales - Nivel Inicial',
+                'organismo': 'Ministerios provinciales',
+                'areas': ['Formación Personal y Social', 'Juego', 'Lenguaje', 'Matemática', 'Ambiente Natural y Social', 'Lenguajes Artísticos'],
+                'estructura': 'Áreas → Contenidos → NAP (Núcleos de Aprendizajes Prioritarios)'
+            },
+            'venezuela': {
+                'nombre': 'Currículo de Educación Inicial Bolivariana',
+                'organismo': 'Ministerio del Poder Popular para la Educación',
+                'areas': ['Formación personal, social y comunicación', 'Relación con el ambiente'],
+                'estructura': 'Áreas → Componentes → Aprendizajes a ser alcanzados'
+            }
+        }
+        
+        curriculo = curriculos.get(pais.lower(), {})
+        if not curriculo:
+            return f"Currículo no encontrado para {pais}"
+        
+        return json.dumps(curriculo, indent=2, ensure_ascii=False)
+
+
+class PedagogicalKnowledgeTool(BaseTool):
+    """Herramienta de conocimiento pedagógico global"""
+    name: str = "pedagogical_knowledge"
+    description: str = "Accede a conocimiento pedagógico global: teorías, mejores prácticas, investigaciones"
+    
+    def _run(self, query: str = "") -> str:
+        """Retorna conocimiento pedagógico"""
+        conocimiento = {
+            'teorias_principales': {
+                'piaget': 'Constructivismo cognitivo - aprendizaje por etapas',
+                'vygotsky': 'Teoría sociocultural - zona de desarrollo próximo',
+                'montessori': 'Aprendizaje autodirigido en ambiente preparado',
+                'reggio_emilia': 'El niño como protagonista, documentación pedagógica',
+                'bruner': 'Aprendizaje por descubrimiento, andamiaje',
+                'freire': 'Pedagogía crítica, educación liberadora'
+            },
+            'mejores_practicas': [
+                'Aprendizaje basado en el juego',
+                'Diferenciación pedagógica',
+                'Evaluación formativa',
+                'Aprendizaje activo y experiencial',
+                'Integración curricular',
+                'Atención a la diversidad',
+                'Participación familiar',
+                'Desarrollo socioemocional'
+            ],
+            'investigaciones_clave': [
+                'OECD Early Learning Framework (2020)',
+                'UNESCO Guidelines for Inclusion (2019)',
+                'CASEL Framework - Aprendizaje socioemocional (2020)',
+                'High/Scope Perry Preschool Study',
+                'Efectos del juego en el desarrollo cognitivo'
+            ]
+        }
+        return json.dumps(conocimiento, indent=2, ensure_ascii=False)
+
+
+class ContextAnalyzerTool(BaseTool):
+    """Herramienta para analizar contexto cultural y socioeconómico"""
+    name: str = "context_analyzer"
+    description: str = "Analiza contexto cultural, socioeconómico y recursos disponibles"
+    
+    def _run(self, pais: str = "", recursos: str = "basicos") -> str:
+        """Analiza el contexto"""
+        analisis = {
+            'contexto_cultural': f'Contexto de {pais}: valores comunitarios, diversidad cultural',
+            'recursos_disponibles': recursos,
+            'recomendaciones': [
+                'Usar materiales del entorno',
+                'Aprovechar la creatividad docente',
+                'Involucrar a las familias',
+                'Adaptar actividades al contexto local'
+            ]
+        }
+        return json.dumps(analisis, indent=2, ensure_ascii=False)
+
+print("✅ Herramientas configuradas")
+python# ============================================================================
+# CELDA 6: AGENTES - ORQUESTADOR MAESTRO
+# ============================================================================
+
+print("🤖 Creando Agente Orquestador Maestro...")
+
+def crear_agente_orquestador_maestro():
+    """Crea el Agente Orquestador Maestro"""
+    return Agent(
+        role='Orquestador Maestro de Educación Infantil Global',
+        goal='Coordinar y sintetizar el mejor plan de clase utilizando conocimiento pedagógico global y experiencia de múltiples sistemas educativos',
+        backstory="""Eres un PhD en Educación Infantil con 30 años de experiencia internacional.
+        Has sido asesor de ministerios de educación en 20+ países. Has leído y analizado miles de 
+        planes curriculares de todo el mundo. Dominas inglés, español, chino y portugués.
+        
+        Tu experiencia incluye:
+        - Diseño de políticas educativas nacionales
+        - Evaluación de sistemas educativos (OCDE, UNESCO)
+        - Investigación en pedagogía comparada
+        - Formación de formadores en múltiples países
+        - Conocimiento profundo de teorías pedagógicas (Piaget, Vygotsky, Montessori, Reggio, Freire)
+        
+        Tu misión es garantizar que cada planificación sea:
+        1. Pedagógicamente sólida (basada en investigación)
+        2. Culturalmente pertinente (respeta el contexto)
+        3. Curricularmente alineada (sigue marcos oficiales)
+        4. Prácticamente viable (puede implementarse)
+        5. De alta calidad (excelencia educativa)
+        """,
+        verbose=True,
+        allow_delegation=True,
+        tools=[PedagogicalKnowledgeTool(), ContextAnalyzerTool()]
+    )
+
+print("✅ Orquestador Maestro creado")
+python# ============================================================================
+# CELDA 7: AGENTES REGIONALES - EEUU Y CHINA
+# ============================================================================
+
+print("🤖 Creando Agentes Regionales (EEUU y China)...")
+
+def crear_agente_eeuu():
+    """Crea el Agente especializado en EEUU"""
+    return Agent(
+        role='Especialista en Educación Infantil de Estados Unidos',
+        goal='Crear lesson plans siguiendo el modelo estadounidense: play-based, centros de aprendizaje, y Common Core',
+        backstory="""Eres una Early Childhood Education specialist con certificación NAEYC.
+        Conoces a fondo Common Core, DAP, play-based learning, y learning centers.
+        
+        Tu especialidad es crear lesson plans que priorizan el juego, ofrecen elección a los niños,
+        utilizan centros de aprendizaje rotativos, y diferencian por nivel de desarrollo.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_china():
+    """Crea el Agente especializado en China"""
+    return Agent(
+        role='Especialista en Educación Infantil de China',
+        goal='Crear planes de clase (课时计划) siguiendo el modelo chino: estructurado, académico, con práctica repetitiva',
+        backstory="""Eres un maestro experimentado (教师) del sistema educativo chino.
+        Conoces los currículos de kindergarten chino (幼儿园课程).
+        
+        Tu método se caracteriza por estructura rígida minuto a minuto, enseñanza directa,
+        práctica repetitiva, corrección inmediata, y énfasis en matemáticas y lenguaje desde temprana edad.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[PedagogicalKnowledgeTool()]
+    )
+
+print("✅ Agentes EEUU y China creados")
+python# ============================================================================
+# CELDA 8: ORQUESTADOR LATINOAMÉRICA
+# ============================================================================
+
+print("🤖 Creando Orquestador Latinoamérica...")
+
+def crear_agente_orquestador_latam():
+    """Crea el Agente Orquestador de Latinoamérica"""
+    return Agent(
+        role='Orquestador Regional de Educación Infantil Latinoamericana',
+        goal='Coordinar agentes nacionales de Latinoamérica y sintetizar la mejor planificación según el país específico',
+        backstory="""Eres un experto en educación infantil latinoamericana con experiencia en toda la región.
+        Has trabajado con ministerios de educación de múltiples países latinos.
+        
+        Conoces diseños curriculares de 10+ países, valores culturales compartidos (familia, comunidad),
+        desafíos comunes (recursos limitados, diversidad cultural), y fortalezas regionales.
+        """,
+        verbose=True,
+        allow_delegation=True,
+        tools=[CurriculumDatabaseTool(), ContextAnalyzerTool()]
+    )
+
+print("✅ Orquestador Latinoamérica creado")
+python# ============================================================================
+# CELDA 9: AGENTES NACIONALES LATINOAMERICANOS
+# ============================================================================
+
+print("🤖 Creando Agentes Nacionales de Latinoamérica...")
+
+def crear_agente_peru():
+    """Agente especializado en Perú"""
+    return Agent(
+        role='Especialista en Educación Inicial del Perú (MINEDU)',
+        goal='Crear planificaciones siguiendo el Currículo Nacional de Educación Básica del Perú (2016)',
+        backstory="""Eres un docente de Educación Inicial del Perú con especialización en el MINEDU.
+        Conoces a profundidad el Currículo Nacional, el enfoque por competencias (competencias → capacidades → desempeños),
+        áreas curriculares, enfoques transversales, y Educación Intercultural Bilingüe (EIB).
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_colombia():
+    """Agente especializado en Colombia"""
+    return Agent(
+        role='Especialista en Educación Inicial de Colombia (MEN)',
+        goal='Crear planeaciones pedagógicas siguiendo las Bases Curriculares de Colombia y los 4 pilares',
+        backstory="""Eres un agente educativo de Colombia especializado en Primera Infancia.
+        Conoces las Bases Curriculares (2017), los 4 pilares (Juego, Arte, Literatura, Exploración),
+        dimensiones del desarrollo, y enfoque de derechos.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_chile():
+    """Agente especializado en Chile"""
+    return Agent(
+        role='Educadora de Párvulos de Chile',
+        goal='Crear planificaciones pedagógicas siguiendo las Bases Curriculares de Educación Parvularia de Chile (2018)',
+        backstory="""Eres una Educadora de Párvulos titulada en Chile.
+        Conoces las Bases Curriculares (2018), estructura de Ámbitos → Núcleos → Objetivos de Aprendizaje (OA),
+        principios pedagógicos, y evaluación para el aprendizaje.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_mexico():
+    """Agente especializado en México"""
+    return Agent(
+        role='Especialista en Educación Preescolar de México (SEP)',
+        goal='Crear situaciones de aprendizaje siguiendo el Programa de Educación Preescolar (PEP) de México',
+        backstory="""Eres un docente de Educación Preescolar de México con formación en la SEP.
+        Conoces el PEP, 6 Campos Formativos, organizadores curriculares, y aprendizajes esperados.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_argentina():
+    """Agente especializado en Argentina"""
+    return Agent(
+        role='Docente de Nivel Inicial de Argentina',
+        goal='Crear planificaciones didácticas siguiendo el Diseño Curricular jurisdiccional argentino',
+        backstory="""Eres un docente del Nivel Inicial en Argentina.
+        Conoces los Diseños Curriculares provinciales, NAP (Núcleos de Aprendizajes Prioritarios),
+        sistema de salas, y el juego como eje central.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool(), PedagogicalKnowledgeTool()]
+    )
+
+
+def crear_agente_venezuela():
+    """Agente especializado en Venezuela"""
+    return Agent(
+        role='Docente de Educación Inicial Bolivariana de Venezuela',
+        goal='Crear planes de actividades siguiendo el Currículo de Educación Inicial Bolivariana',
+        backstory="""Eres un docente del sistema de Educación Inicial Bolivariana de Venezuela.
+        Conoces el currículo bolivariano, áreas de aprendizaje, y enfoque comunitario.
+        """,
+        verbose=True,
+        allow_delegation=False,
+        tools=[CurriculumDatabaseTool()]
+    )
+
+print("✅ Agentes Nacionales creados")
+python# ============================================================================
+# CELDA 10: FUNCIÓN PARA CREAR CREW
+# ============================================================================
+
+print("🎯 Configurando función de creación de Crew...")
+
+def crear_crew_educacion_infantil(inputs_usuario: Dict[str, Any]) -> Crew:
+    """
+    Crea y configura el Crew completo según los inputs del usuario
+    """
+    
+    # Crear agente orquestador maestro
+    orquestador_maestro = crear_agente_orquestador_maestro()
+    
+    # Determinar región/país del input
+    pais = inputs_usuario.get('pais', '').lower()
+    estilo = inputs_usuario.get('estilo_pedagogico', '').lower()
+    
+    # Mapeo de país a región
+    paises_latam = ['peru', 'perú', 'colombia', 'chile', 'mexico', 'méxico', 
+                    'argentina', 'venezuela', 'ecuador', 'bolivia']
+    
+    # Identificar región
+    if estilo == 'eeuu' or pais == 'usa':
+        region = 'eeuu'
+        agente_regional = crear_agente_eeuu()
+        agente_nacional = None
+    elif estilo == 'china' or pais == 'china':
+        region = 'china'
+        agente_regional = crear_agente_china()
+        agente_nacional = None
+    elif any(p in pais for p in paises_latam) or estilo == 'latinoamerica':
+        region = 'latinoamerica'
+        agente_regional = crear_agente_orquestador_latam()
+        
+        # Crear agente nacional específico
+        agentes_nacionales = {
+            'peru': crear_agente_peru(),
+            'perú': crear_agente_peru(),
+            'colombia': crear_agente_colombia(),
+            'chile': crear_agente_chile(),
+            'mexico': crear_agente_mexico(),
+            'méxico': crear_agente_mexico(),
+            'argentina': crear_agente_argentina(),
+            'venezuela': crear_agente_venezuela()
+        }
+        agente_nacional = agentes_nacionales.get(pais)
+    else:
+        # Default: Latinoamérica
+        region = 'latinoamerica'
+        agente_regional = crear_agente_orquestador_latam()
+        agente_nacional = None
+    
+    # Crear tareas secuenciales
+    tareas = []
+    
+    # Tarea 1: Análisis inicial
+    tarea_analisis = Task(
+        description=f"""Analiza la siguiente solicitud y determina la mejor estrategia:
+        
+        INPUTS: {json.dumps(inputs_usuario, indent=2, ensure_ascii=False)}
+        
+        Analiza: región/país, idioma, contexto cultural, recursos, agente apropiado, recomendaciones.
+        """,
+        agent=orquestador_maestro,
+        expected_output="Análisis detallado en JSON con región, país, contexto, agente recomendado"
+    )
+    tareas.append(tarea_analisis)
+    
+    # Tarea 2: Generación
+    if region == 'latinoamerica' and agente_nacional:
+        tarea_generacion = Task(
+            description=f"""Genera planificación completa para {pais.upper()} según diseño curricular oficial.
+            INPUTS: {json.dumps(inputs_usuario, indent=2, ensure_ascii=False)}
+            Sigue ESTRICTAMENTE el formato y estructura curricular.
+            """,
+            agent=agente_nacional,
+            expected_output=f"Planificación completa formato oficial de {pais}"
+        )
+    else:
+        tarea_generacion = Task(
+            description=f"""Genera planificación estilo {region.upper()}.
+            INPUTS: {json.dumps(inputs_usuario, indent=2, ensure_ascii=False)}
+            """,
+            agent=agente_regional,
+            expected_output="Planificación completa lista para implementar"
+        )
+    tareas.append(tarea_generacion)
+    
+    # Tarea 3: Síntesis final
+    tarea_sintesis = Task(
+        description="""Revisa y mejora la planificación con experiencia global.
+        Aplica mejores prácticas, agrega perspectiva comparada, evalúa calidad (0-100).
+        
+        FORMATO: JSON con planificacion_final, calidad_score, fortalezas, recomendaciones.
+        """,
+        agent=orquestador_maestro,
+        expected_output="Documento final con planificación mejorada y análisis experto"
+    )
+    tareas.append(tarea_sintesis)
+    
+    # Determinar lista de agentes
+    lista_agentes = [orquestador_maestro, agente_regional]
+    if agente_nacional:
+        lista_agentes.append(agente_nacional)
+    
+    # Crear Crew
+    crew = Crew(
+        agents=lista_agentes,
+        tasks=tareas,
+        process=Process.sequential,
+        verbose=True
+    )
+    
+    return crew
+
+print("✅ Función crear_crew configurada")
+python# ============================================================================
+# CELDA 11: FUNCIÓN PRINCIPAL DE EJECUCIÓN
+# ============================================================================
+
+print("🚀 Configurando función principal...")
+
+def generar_planificacion_global(inputs_usuario: Dict[str, Any]) -> str:
+    """
+    Función principal para generar planificación
+    """
+    
+    print("\n" + "="*80)
+    print("🌍 SISTEMA ORQUESTADOR MULTILINGÜE - CREWAI")
+    print("="*80)
+    print(f"\n📋 Procesando solicitud...")
+    print(f"   Tema: {inputs_usuario.get('tema')}")
+    print(f"   País: {inputs_usuario.get('pais', inputs_usuario.get('estilo_pedagogico'))}")
+    print(f"   Edad: {inputs_usuario.get('edad')}")
+    
+    # Crear crew
+    crew = crear_crew_educacion_infantil(inputs_usuario)
+    
+    # Ejecutar crew
+    print("\n🚀 Ejecutando sistema multi-agente...\n")
+    resultado = crew.kickoff()
+    
+    print("\n" + "="*80)
+    print("✅ PLANIFICACIÓN COMPLETADA")
+    print("="*80)
+    
+    return resultado
+
+print("✅ Función principal configurada")
+python# ============================================================================
+# CELDA 12: EJEMPLOS PREDEFINIDOS
+# ============================================================================
+
+print("📚 Configurando ejemplos predefinidos...\n")
+
+# EJEMPLO 1: PERÚ
+ejemplo_peru = {
+    'pais': 'peru',
+    'tema': 'Los animales de la selva peruana',
+    'edad': '4-5 años',
+    'duracion': 45,
+    'num_estudiantes': 25,
+    'objetivos': [
+        'Conocer animales de la selva amazónica',
+        'Valorar la biodiversidad peruana',
+        'Desarrollar expresión oral en castellano'
+    ],
+    'competencias': ['Comunicación', 'Ciencia y Tecnología', 'Personal Social'],
+    'recursos': 'materiales_basicos',
+    'contexto': 'Zona urbana de Lima, niños hispanohablantes'
+}
+
+# EJEMPLO 2: COLOMBIA
+ejemplo_colombia = {
+    'pais': 'colombia',
+    'tema': 'Explorando sonidos de la naturaleza',
+    'edad': '3-4 años',
+    'duracion': 60,
+    'num_estudiantes': 20,
+    'objetivos': [
+        'Explorar sonidos del entorno natural',
+        'Desarrollar escucha activa',
+        'Expresarse mediante el arte'
+    ],
+    'competencias': ['Comunicativa', 'Artística', 'Cognitiva'],
+    'recursos': 'materiales_del_entorno',
+    'contexto': 'Jardín infantil en Bogotá'
+}
+
+# EJEMPLO 3: CHILE
+ejemplo_chile = {
+    'pais': 'chile',
+    'tema': 'Las formas geométricas en nuestro entorno',
+    'edad': '5-6 años',
+    'duracion': 90,
+    'num_estudiantes': 22,
+    'objetivos': [
+        'Identificar formas geométricas básicas',
+        'Relacionar formas con objetos cotidianos',
+        'Desarrollar pensamiento matemático'
+    ],
+    'competencias': ['Pensamiento matemático', 'Exploración del entorno'],
+    'recursos': 'materiales_variados',
+    'contexto': 'Nivel Transición 2 (NT2), jardín público en Santiago'
+}
+
+# EJEMPLO 4: MÉXICO
+ejemplo_mexico = {
+    'pais': 'mexico',
+    'tema': 'Las tradiciones mexicanas',
+    'edad': '4-5 años',
+    'duracion': 60,
+    'num_estudiantes': 24,
+    'objetivos': [
+        'Conocer tradiciones mexicanas',
+        'Valorar identidad cultural',
+        'Expresarse artísticamente'
+    ],
+    'competencias': ['Exploración del mundo', 'Artes', 'Educación socioemocional'],
+    'recursos': 'materiales_basicos',
+    'contexto': 'Preescolar público en Ciudad de México'
+}
+
+# EJEMPLO 5: EEUU
+ejemplo_eeuu = {
+    'estilo_pedagogico': 'eeuu',
+    'tema': 'Community Helpers',
+    'edad': '4-5 años',
+    'duracion': 180,
+    'num_estudiantes': 18,
+    'objetivos': [
+        'Identify different community helpers',
+        'Understand how helpers support our community',
+        'Develop social awareness'
+    ],
+    'competencias': ['Social Studies', 'Language Arts', 'Social-Emotional'],
+    'recursos': 'completos',
+    'contexto': 'Pre-K classroom, diverse urban setting'
+}
+
+# EJEMPLO 6: CHINA
+ejemplo_china = {
+    'estilo_pedagogico': 'china',
+    'tema': '认识颜色 (Reconocimiento de colores)',
+    'edad': '3-4 años',
+    'duracion': 45,
+    'num_estudiantes': 30,
+    'objetivos': [
+        'Identificar 5 colores básicos',
+        'Nombrar colores en chino',
+        'Clasificar objetos por color'
+    ],
+    'competencias': ['Cognitiva', 'Lenguaje'],
+    'recursos': 'materiales_preparados',
+    'contexto': 'Kindergarten urbano en Beijing'
+}
+
+print("✅ Ejemplos configurados:")
+print("   1. 🇵🇪 Perú - Animales de la selva")
+print("   2. 🇨🇴 Colombia - Sonidos de la naturaleza")
+print("   3. 🇨🇱 Chile - Formas geométricas")
+print("   4. 🇲🇽 México - Tradiciones mexicanas")
+print("   5. 🇺🇸 EEUU - Community Helpers")
+print("   6. 🇨🇳 China - Colores")
+python# ============================================================================
+# CELDA 13: INTERFAZ INTERACTIVA
+# ============================================================================
+
+print("\n" + "="*80)
+print("🎓 INTERFAZ DE SELECCIÓN")
+print("="*80)
+print("\nSelecciona un ejemplo para ejecutar:\n")
+
+ejemplos = {
+    '1': ('🇵🇪 Perú - Animales de la selva peruana', ejemplo_peru),
+    '2': ('🇨🇴 Colombia - Explorando sonidos', ejemplo_colombia),
+    '3': ('🇨🇱 Chile - Formas geométricas', ejemplo_chile),
+    '4': ('🇲🇽 México - Tradiciones mexicanas', ejemplo_mexico),
+    '5': ('🇺🇸 EEUU - Community Helpers', ejemplo_eeuu),
+    '6': ('🇨🇳 China - Reconocimiento de colores', ejemplo_china),
+}
+
+for key, (nombre, _) in ejemplos.items():
+    print(f"   {key}. {nombre}")
+
+print("\n" + "="*80)
+python# ============================================================================
+# CELDA 14: EJECUTAR EJEMPLO (USUARIO SELECCIONA AQUÍ)
+# ============================================================================
+
+# 👉 MODIFICA ESTE NÚMERO PARA CAMBIAR DE EJEMPLO (1-6)
+EJEMPLO_SELECCIONADO = 1  # Cambia este número
+
+print("\n" + "="*80)
+print(f"🚀 EJECUTANDO EJEMPLO {EJEMPLO_SELECCIONADO}")
+print("="*80)
+
+if str(EJEMPLO_SELECCIONADO) in ejemplos:
+    nombre_ejemplo, inputs = ejemplos[str(EJEMPLO_SELECCIONADO)]
+    print(f"\n📌 {nombre_ejemplo}\n")
+    
+    # Mostrar inputs
+    print("📋 INPUTS:")
+    print(json.dumps(inputs, indent=2, ensure_ascii=False))
+    print("\n" + "-"*80 + "\n")
+    
+    # Ejecutar
+    resultado = generar_planificacion_global(inputs)
+    
+    # Mostrar resultado
+    print("\n" + "="*80)
+    print("📄 RESULTADO FINAL")
+    print("="*80)
+    print(resultado)
+    
+    # Guardar resultado
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"planificacion_{EJEMPLO_SELECCIONADO}_{timestamp}.txt"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(str(resultado))
+    
+    print(f"\n💾 Resultado guardado en: {filename}")
+    
+else:
+    print(f"❌ Ejemplo {EJEMPLO_SELECCIONADO} no válido. Selecciona entre 1-6")
+python# ============================================================================
+# CELDA 15: CREAR TU PROPIA PLANIFICACIÓN PERSONALIZADA
+# ============================================================================
+
+print("✨ CREAR PLANIFICACIÓN PERSONALIZADA")
+print("="*80)
+print("\n👇 Completa los campos abajo para crear tu planificación personalizada\n")
+
+# Configuración personalizada
+mi_planificacion = {
+    'pais': 'peru',  # peru, colombia, chile, mexico, argentina, venezuela
+    # O usa: 'estilo_pedagogico': 'eeuu' o 'china'
+    
+    'tema': 'Mi familia y yo',  # Cambia el tema aquí
+    
+    'edad': '4-5 años',  # 3-4, 4-5, 5-6 años
+    
+    'duracion': 45,  # minutos
+    
+    'num_estudiantes': 25,
+    
+    'objetivos': [
+        'Identificar miembros de la familia',
+        'Expresar afecto hacia la familia',
+        'Desarrollar identidad personal'
+    ],
+    
+    'competencias': ['Personal Social', 'Comunicación'],
+    
+    'recursos': 'materiales_basicos',  # basicos, completos, limitados
+    
+    'contexto': 'Zona urbana, aula multicultural'
+}
+
+print("📋 TU PLANIFICACIÓN PERSONALIZADA:")
+print(json.dumps(mi_planificacion, indent=2, ensure_ascii=False))
+print("\n⚠️  Para ejecutar esta planificación, descomenta la siguiente línea:")
+print("     resultado_personalizado = generar_planificacion_global(mi_planificacion)")
+python# ============================================================================
+# CELDA 16: EJECUTAR PLANIFICACIÓN PERSONALIZADA
+# ============================================================================
+
+# 👉 DESCOMENTA LA SIGUIENTE LÍNEA PARA EJECUTAR TU PLANIFICACIÓN PERSONALIZADA
+
+# resultado_personalizado = generar_planificacion_global(mi_planificacion)
+# print(resultado_personalizado)
+
+print("✅ Celda lista. Descomenta el código para ejecutar tu planificación personalizada")
+python# ============================================================================
+# CELDA 17: DESCARGAR RESULTADOS
+# ============================================================================
+
+from google.colab import files
+import os
+
+print("💾 DESCARGAR RESULTADOS")
+print("="*80)
+
+# Listar archivos generados
+archivos_txt = [f for f in os.listdir() if f.startswith('planificacion_') and f.endswith('.txt')]
+
+if archivos_txt:
+    print(f"\n📁 Archivos generados ({len(archivos_txt)}):")
+    for i, archivo in enumerate(archivos_txt, 1):
+        print(f"   {i}. {archivo}")
+    
+    print("\n👇 Ejecuta la siguiente celda para descargar un archivo específico")
+else:
+    print("\n⚠️  No hay archivos generados todavía")
+    print("   Ejecuta primero algún ejemplo para generar planificaciones")
+python# ============================================================================
+# CELDA 18: DESCARGAR ARCHIVO ESPECÍFICO
+# ============================================================================
+
+# 👉 Modifica el número para descargar un archivo diferente
+ARCHIVO_A_DESCARGAR = 0  # 0 = más reciente, 1 = segundo más reciente, etc.
+
+archivos_txt = sorted(
+    [f for f in os.listdir() if f.startswith('planificacion_') and f.endswith('.txt')],
+    reverse=True
+)
+
+if archivos_txt and ARCHIVO_A_DESCARGAR < len(archivos_txt):
+    archivo = archivos_txt[ARCHIVO_A_DESCARGAR]
+    print(f"📥 Descargando: {archivo}")
+    files.download(archivo)
+    print("✅ Descarga iniciada")
+else:
+    print("❌ No hay archivos disponibles o índice inválido")
+python# ============================================================================
+# CELDA 19: INFORMACIÓN Y AYUDA
+# ============================================================================
+
+print("""
+╔════════════════════════════════════════════════════════════════════════════╗
+║                        📚 GUÍA DE USO RÁPIDA                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+🔧 CONFIGURACIÓN INICIAL:
+   1. Ejecuta Celda 2: Instalar dependencias
+   2. Ejecuta Celda 3: Configurar API Key de OpenAI
+   3. Ejecuta Celdas 4-11: Configurar sistema
+
+🚀 EJECUTAR EJEMPLOS PREDEFINIDOS:
+   • Celda 14: Cambia EJEMPLO_SELECCIONADO (1-6) y ejecuta
+   
+   Ejemplos disponibles:
+   1. 🇵🇪 Perú (MINEDU)
+   2. 🇨🇴 Colombia (MEN - 4 Pilares)
+   3. 🇨🇱 Chile (Bases Curriculares)
+   4. 🇲🇽 México (SEP - PEP)
+   5. 🇺🇸 EEUU (Play-based, Common Core)
+   6. 🇨🇳 China (Estructurado, académico)
+
+✏️ CREAR PLANIFICACIÓN PERSONALIZADA:
+   • Celda 15: Modifica mi_planificacion con tus datos
+   • Celda 16: Descomenta y ejecuta
+
+💾 DESCARGAR RESULTADOS:
+   • Celda 17: Ver archivos generados
+   • Celda 18: Descargar archivo específico
+
+⚙️ CAMPOS IMPORTANTES:
+   • pais: peru, colombia, chile, mexico, argentina, venezuela
+   • estilo_pedagogico: eeuu, china, latinoamerica
+   • edad: 3-4, 4-5, 5-6 años
+   • duracion: minutos (45, 60, 90, 180, 240)
+   • recursos: basicos, completos, limitados
+
+🆘 SOLUCIÓN DE PROBLEMAS:
+   • Error de API Key: Vuelve a ejecutar Celda 3
+   • Error de import: Vuelve a ejecutar Celda 2
+   • Error de agente: Ejecuta todas las celdas desde Celda 4
+
+📧 SOPORTE:
+   Este sistema usa CrewAI + OpenAI GPT-4
+   Documentación: https://docs.crewai.com
+   
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    ✨ ¡LISTO PARA GENERAR PLANIFICACIONES! ✨              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+""")
+python# ============================================================================
+# CELDA 20: ESTADÍSTICAS Y RESUMEN
+# ============================================================================
+
+import os
+
+print("📊 ESTADÍSTICAS DEL SISTEMA")
+print("="*80)
+
+# Contar archivos generados
+archivos_txt = [f for f in os.listdir() if f.startswith('planificacion_') and f.endswith('.txt')]
+print(f"\n✅ Planificaciones generadas: {len(archivos_txt)}")
+
+# Agentes disponibles
+print(f"\n🤖 Agentes configurados:")
+print(f"   • Orquestador Maestro Global")
+print(f"   • Agente EEUU")
+print(f"   • Agente China")
+print(f"   • Orquestador Latinoamérica")
+print(f"   • Agente Perú (MINEDU)")
+print(f"   • Agente Colombia (MEN)")
+print(f"   • Agente Chile (MinEduc)")
+print(f"   • Agente México (SEP)")
+print(f"   • Agente Argentina")
+print(f"   • Agente Venezuela")
+
+print(f"\n🌍 Países soportados:")
+print(f"   Latinoamérica: Perú, Colombia, Chile, México, Argentina, Venezuela")
+print(f"   Otros: Estados Unidos, China")
+
+print(f"\n📚 Marcos curriculares conocidos:")
+print(f"   • Perú: Currículo Nacional (2016)")
+print(f"   • Colombia: Bases Curriculares (2017)")
+print(f"   • Chile: Bases Curriculares Parvularia (2018)")
+print(f"   • México: PEP (SEP)")
+print(f"   • EEUU: Common Core, NAEYC, DAP")
+print(f"   • China: 幼儿园课程")
+
+print("\n" + "="*80)
+print("✅ Sistema completamente operativo")
+
+📝 INSTRUCCIONES PARA USAR EN GOOGLE COLAB
+Paso 1: Crear nuevo notebook
+
+Ve a https://colab.research.google.com
+Click en "Archivo" → "Nuevo notebook"
+
+Paso 2: Copiar el código
+
+Copia cada celda de código (marcada con ```python) en una celda nueva de Colab
+Mantén el orden de las celdas
+
+Paso 3: Ejecutar
+
+Ejecuta las celdas en orden (1-11 para configurar)
+En Celda 3, ingresa tu API Key de OpenAI
+En Celda 14, cambia EJEMPLO_SELECCIONADO para elegir un ejemplo
+Ejecuta y espera los resultados
+
+Paso 4: Personalizar (Opcional)
+
+Usa Celda 15 para crear tu propia planificación
+Descomenta y ejecuta Celda 16
+
+Paso 5: Descargar resultados
+
+Ejecuta Celda 17 para ver archivos
+Ejecuta Celda 18 para descargar
+
+¡Listo! El sistema está completamente funcional en Google Colab. 🎉
