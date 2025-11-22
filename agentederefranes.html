@@ -1,0 +1,406 @@
+pip install transformers torch
+
+
+
+"""
+
+Agente Virtual de Refranes por País
+
+Usando GPT-2-XL sin API keys
+
+"""
+
+
+
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+import torch
+
+import warnings
+
+warnings.filterwarnings('ignore')
+
+
+
+print("🌎 Iniciando Agente de Refranes por País...")
+
+print("⏳ Cargando modelo GPT-2-XL (puede tardar la primera vez)...")
+
+
+
+# Cargar modelo GPT-2-XL y tokenizador
+
+try:
+
+  tokenizer = GPT2Tokenizer.from_pretrained("gpt2-xl")
+
+  model = GPT2LMHeadModel.from_pretrained("gpt2-xl")
+
+  tokenizer.pad_token = tokenizer.eos_token
+
+  print("✅ Modelo cargado exitosamente!\n")
+
+except Exception as e:
+
+  print(f"❌ Error al cargar el modelo: {e}")
+
+  print("Intentando con gpt2 base como alternativa...")
+
+  tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+
+  model = GPT2LMHeadModel.from_pretrained("gpt2")
+
+  tokenizer.pad_token = tokenizer.eos_token
+
+
+
+# Base de refranes por país (para guiar al modelo)
+
+refranes_base = {
+
+  "peru": [
+
+    "Más vale pájaro en mano que cien volando",
+
+    "Al que madruga, Dios lo ayuda", 
+
+    "No hay mal que por bien no venga"
+
+  ],
+
+  "chile": [
+
+    "A caballo regalado no se le miran los dientes",
+
+    "Más sabe el diablo por viejo que por diablo",
+
+    "El que ríe último, ríe mejor"
+
+  ],
+
+  "mexico": [
+
+    "El que nace para tamal, del cielo le caen las hojas",
+
+    "Al nopal lo van a ver solo cuando tiene tunas",
+
+    "Árbol que nace torcido, jamás su tronco endereza"
+
+  ],
+
+  "argentina": [
+
+    "Al que madruga, Dios lo ayuda",
+
+    "No hay peor sordo que el que no quiere oír",
+
+    "El que mucho abarca, poco aprieta"
+
+  ],
+
+  "colombia": [
+
+    "Loro viejo no aprende a hablar",
+
+    "Camarón que se duerme se lo lleva la corriente",
+
+    "Del ahogado, el sombrero"
+
+  ],
+
+  "españa": [
+
+    "No hay mal que cien años dure",
+
+    "A quien madruga, Dios le ayuda",
+
+    "Más vale tarde que nunca"
+
+  ]
+
+}
+
+
+
+def generar_refran(pais):
+
+  """Genera un refrán basado en el país solicitado"""
+
+   
+
+  pais_lower = pais.lower().strip()
+
+   
+
+  # Crear un prompt contextual para el modelo
+
+  if pais_lower in refranes_base:
+
+    ejemplos = refranes_base[pais_lower]
+
+    prompt = f"Refranes populares de {pais.title()}:\n"
+
+    prompt += f"1. {ejemplos[0]}\n"
+
+    prompt += f"2. {ejemplos[1]}\n"
+
+    prompt += f"3. Otro refrán típico de {pais.title()} es: "
+
+  else:
+
+    # Para países no en la base, crear un prompt genérico
+
+    prompt = f"Un refrán tradicional y sabio de {pais.title()} dice: "
+
+   
+
+  # Tokenizar el prompt
+
+  inputs = tokenizer.encode(prompt, return_tensors="pt", truncation=True, max_length=100)
+
+   
+
+  # Generar respuesta con GPT-2-XL
+
+  with torch.no_grad():
+
+    outputs = model.generate(
+
+      inputs,
+
+      max_length=inputs.shape[1] + 30, # Añadir máximo 30 tokens
+
+      min_length=inputs.shape[1] + 10,  # Mínimo 10 tokens nuevos
+
+      num_return_sequences=1,
+
+      temperature=0.9,          # Creatividad moderada-alta
+
+      top_p=0.92,            # Nucleus sampling
+
+      do_sample=True,          # Muestreo probabilístico
+
+      pad_token_id=tokenizer.eos_token_id,
+
+      no_repeat_ngram_size=3,      # Evitar repeticiones
+
+      early_stopping=True
+
+    )
+
+   
+
+  # Decodificar y limpiar respuesta
+
+  respuesta_completa = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+   
+
+  # Extraer solo el refrán generado
+
+  if "es: " in respuesta_completa:
+
+    refran = respuesta_completa.split("es: ")[-1]
+
+  elif "dice: " in respuesta_completa:
+
+    refran = respuesta_completa.split("dice: ")[-1]
+
+  else:
+
+    refran = respuesta_completa[len(prompt):]
+
+   
+
+  # Limpiar el refrán
+
+  refran = refran.split("\n")[0].strip()
+
+  if not refran:
+
+    # Si no generó nada, usar uno de la base o generar uno genérico
+
+    if pais_lower in refranes_base:
+
+      import random
+
+      refran = random.choice(refranes_base[pais_lower])
+
+    else:
+
+      refran = "En tierra de ciegos, el tuerto es rey"
+
+   
+
+  return refran
+
+
+
+def formatear_respuesta(pais, refran):
+
+  """Formatea la respuesta del agente"""
+
+  emojis_paises = {
+
+    "peru": "🇵🇪",
+
+    "chile": "🇨🇱", 
+
+    "mexico": "🇲🇽",
+
+    "argentina": "🇦🇷",
+
+    "colombia": "🇨🇴",
+
+    "españa": "🇪🇸",
+
+    "venezuela": "🇻🇪",
+
+    "ecuador": "🇪🇨",
+
+    "bolivia": "🇧🇴",
+
+    "uruguay": "🇺🇾",
+
+    "paraguay": "🇵🇾",
+
+    "brasil": "🇧🇷"
+
+  }
+
+   
+
+  emoji = emojis_paises.get(pais.lower(), "🌍")
+
+  return f"{emoji} Refrán de {pais.title()}:\n  \"{refran}\""
+
+
+
+# ============= INTERFAZ PRINCIPAL =============
+
+
+
+print("=" * 60)
+
+print("🎭 AGENTE VIRTUAL DE REFRANES POR PAÍS")
+
+print("=" * 60)
+
+print("Escribe el nombre de un país para obtener un refrán")
+
+print("Ejemplos: 'peru', 'chile', 'mexico', 'argentina', etc.")
+
+print("Escribe 'salir' para terminar\n")
+
+
+
+# Bucle principal del agente
+
+while True:
+
+  try:
+
+    # Solicitar entrada del usuario
+
+    entrada = input("👤 Tú: ").strip()
+
+     
+
+    # Verificar si quiere salir
+
+    if entrada.lower() in ['salir', 'exit', 'quit', 'q']:
+
+      print("\n👋 ¡Hasta luego! Que los refranes te acompañen.")
+
+      break
+
+     
+
+    # Verificar entrada vacía
+
+    if not entrada:
+
+      print("🤖 Agente: Por favor, escribe el nombre de un país.\n")
+
+      continue
+
+     
+
+    # Detectar el país en la entrada
+
+    pais_detectado = None
+
+    entrada_lower = entrada.lower()
+
+     
+
+    # Lista de países para detectar
+
+    paises_conocidos = ["peru", "perú", "chile", "mexico", "méxico", "argentina", 
+
+             "colombia", "españa", "venezuela", "ecuador", "bolivia",
+
+             "uruguay", "paraguay", "brasil", "costa rica", "panama",
+
+             "guatemala", "honduras", "nicaragua", "salvador"]
+
+     
+
+    # Buscar país en la entrada
+
+    for pais in paises_conocidos:
+
+      if pais in entrada_lower:
+
+        pais_detectado = pais.replace("ú", "u").replace("é", "e")
+
+        break
+
+     
+
+    # Si no se detectó país, intentar usar la entrada completa
+
+    if not pais_detectado:
+
+      # Asumir que toda la entrada es el nombre del país
+
+      pais_detectado = entrada
+
+     
+
+    print(f"\n🤖 Agente: Buscando refrán de {pais_detectado.title()}...\n")
+
+     
+
+    # Generar refrán
+
+    refran = generar_refran(pais_detectado)
+
+     
+
+    # Mostrar respuesta formateada
+
+    respuesta = formatear_respuesta(pais_detectado, refran)
+
+    print(f"🤖 Agente:\n{respuesta}\n")
+
+    print("-" * 60)
+
+     
+
+  except KeyboardInterrupt:
+
+    print("\n\n👋 ¡Programa interrumpido! Hasta luego.")
+
+    break
+
+  except Exception as e:
+
+    print(f"❌ Error: {e}")
+
+    print("🤖 Agente: Hubo un problema. Intenta con otro país.\n")
+
+
+
+print("\n✨ Gracias por usar el Agente de Refranes!")
+
