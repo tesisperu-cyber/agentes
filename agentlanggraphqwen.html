@@ -1,0 +1,312 @@
+# ============================================
+# PASO 1: Instalar Dependencias
+# ============================================
+
+!pip install -q langgraph langchain langchain-community
+!pip install -q huggingface_hub
+!pip install -q langchain-huggingface
+
+
+# ============================================
+# PASO 2: Instalar Dependencias
+# ============================================
+
+import os
+from google.colab import userdata
+
+try:
+    hf_token = userdata.get('HF_TOKEN')
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_token
+    print("✅ Token configurado correctamente")
+except:
+    print("⚠️  ERROR: No se encontró HF_TOKEN")
+    print("Por favor añade tu token en Colab Secrets (🔑)")
+    print("Nombre: HF_TOKEN")
+    print("Valor: tu_token_de_huggingface")
+
+
+
+
+# ============================================
+# PASO 3: Configurar Qwen (CORREGIDO)
+# ============================================
+from huggingface_hub import InferenceClient
+
+# Crear cliente
+client = InferenceClient(
+    model="Qwen/Qwen2.5-7B-Instruct",
+    token=os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+)
+
+# Función helper para usar en el agente
+def llamar_qwen(mensaje: str) -> str:
+    """Llama a Qwen usando chat_completion"""
+    response = client.chat_completion(
+        messages=[
+            {"role": "system", "content": "Eres un asistente útil y conciso. Responde en español."},
+            {"role": "user", "content": mensaje}
+        ],
+        max_tokens=512,
+        temperature=0.7,
+        top_p=0.9,
+    )
+    return response.choices[0].message.content
+
+print("✅ Modelo Qwen configurado")
+
+
+
+
+
+
+# ============================================
+# PASO 4:  Definir Estado del Agente
+# ============================================
+
+class AgentState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], operator.add]
+    next: str
+
+print("✅ Estado definido")
+
+
+
+
+
+# ============================================
+# PASO 5:  Crear Herramientas
+# ============================================
+
+
+def calculadora(expression: str) -> str:
+    """Herramienta simple de calculadora"""
+    try:
+        result = eval(expression)
+        return f"Resultado: {result}"
+    except Exception as e:
+        return f"Error al calcular: {str(e)}"
+
+def buscar_info(query: str) -> str:
+    """Simula una búsqueda de información"""
+    info_base = {
+        "python": "Python es un lenguaje de programación de alto nivel, interpretado y de propósito general.",
+        "ia": "La Inteligencia Artificial es la simulación de procesos de inteligencia humana por máquinas.",
+        "langgraph": "LangGraph es una librería para construir agentes con estados utilizando grafos.",
+        "qwen": "Qwen es una serie de modelos de lenguaje desarrollados por Alibaba Cloud.",
+    }
+    query_lower = query.lower()
+    for key, value in info_base.items():
+        if key in query_lower:
+            return value
+    return "No encontré información específica sobre esa consulta."
+
+print("✅ Herramientas creadas")
+
+
+
+
+
+
+# ============================================
+# PASO 6:  Definir Nodos del Agente
+# ============================================
+
+
+def agente_razonamiento(state: AgentState):
+    """Nodo que procesa la consulta del usuario"""
+    messages = state["messages"]
+    ultima_mensaje = messages[-1].content
+    
+    # Determinar si necesita usar herramientas
+    if any(word in ultima_mensaje.lower() for word in ["calcular", "calcula", "suma", "resta", "multiplica", "divide"]):
+        return {"next": "calculadora"}
+    elif any(word in ultima_mensaje.lower() for word in ["busca", "qué es", "información", "explica"]):
+        return {"next": "buscar"}
+    else:
+        return {"next": "responder"}
+
+def nodo_calculadora(state: AgentState):
+    """Nodo que usa la calculadora"""
+    messages = state["messages"]
+    ultima_mensaje = messages[-1].content
+    
+    import re
+    expresion = re.search(r'[\d\+\-\*/\(\)\s]+', ultima_mensaje)
+    if expresion:
+        resultado = calculadora(expresion.group())
+    else:
+        resultado = "No pude identificar una expresión matemática válida."
+    
+    return {
+        "messages": [AIMessage(content=f"🧮 {resultado}")],
+        "next": "fin"
+    }
+
+def nodo_buscar(state: AgentState):
+    """Nodo que busca información"""
+    messages = state["messages"]
+    ultima_mensaje = messages[-1].content
+    
+    resultado = buscar_info(ultima_mensaje)
+    
+    return {
+        "messages": [AIMessage(content=f"📚 {resultado}")],
+        "next": "fin"
+    }
+
+def nodo_responder(state: AgentState):
+    """Genera respuesta con Qwen"""
+    messages = state["messages"]
+    ultimo_mensaje = messages[-1].content
+    
+    # Llamar a Qwen con la función helper
+    response = llamar_qwen(ultimo_mensaje)
+    
+    return {
+        "messages": [AIMessage(content=f"🤖 {response}")],
+        "next": "fin"
+    }
+    
+    # Generar respuesta
+    response = llm.invoke(prompt)
+    
+    return {
+        "messages": [AIMessage(content=f"🤖 {response}")],
+        "next": "fin"
+    }
+
+def deberia_continuar(state: AgentState):
+    """Decide si continuar o terminar"""
+    return state.get("next", "fin")
+
+print("✅ Nodos definidos")
+
+
+
+
+
+
+
+# ============================================
+# PASO 7:  Construir el Grafo
+# ============================================
+
+workflow = StateGraph(AgentState)
+
+# Añadir nodos
+workflow.add_node("razonamiento", agente_razonamiento)
+workflow.add_node("calculadora", nodo_calculadora)
+workflow.add_node("buscar", nodo_buscar)
+workflow.add_node("responder", nodo_responder)
+
+# Punto de entrada
+workflow.set_entry_point("razonamiento")
+
+# Edges condicionales
+workflow.add_conditional_edges(
+    "razonamiento",
+    deberia_continuar,
+    {
+        "calculadora": "calculadora",
+        "buscar": "buscar",
+        "responder": "responder",
+        "fin": END
+    }
+)
+
+# Edges finales
+workflow.add_edge("calculadora", END)
+workflow.add_edge("buscar", END)
+workflow.add_edge("responder", END)
+
+# Compilar
+app = workflow.compile()
+
+print("✅ Grafo construido y compilado")
+
+
+
+
+
+
+
+# ============================================
+# PASO 8:  Función de Chat
+# ============================================
+
+
+def chat(mensaje: str):
+    """Envía un mensaje al agente y obtiene la respuesta"""
+    print(f"\n👤 Usuario: {mensaje}")
+    print("⏳ Procesando...\n")
+    
+    state = {
+        "messages": [HumanMessage(content=mensaje)],
+        "next": ""
+    }
+    
+    result = app.invoke(state)
+    
+    respuesta = result["messages"][-1].content
+    print(f"{respuesta}\n")
+    return respuesta
+
+print("✅ Función de chat lista")
+
+
+
+
+
+# ============================================
+# PASO 9: Ejemplos de Uso
+# ============================================
+
+
+# Ejemplo 1: Calculadora
+chat("Calcula 25 + 37")
+
+
+
+# Ejemplo 2: Búsqueda de información
+chat("¿Qué es Python?")
+
+
+
+# Ejemplo 3: Conversación general con Qwen
+chat("Cuéntame un dato interesante sobre la inteligencia artificial")
+
+
+
+# ============================================
+# PASO 10: Modo Interactivo
+# ============================================
+
+
+print("="*60)
+print("💬 MODO INTERACTIVO")
+print("="*60)
+print("Escribe 'salir' para terminar\n")
+
+while True:
+    try:
+        user_input = input("👤 Tú: ")
+        if user_input.lower() in ['salir', 'exit', 'quit']:
+            print("👋 ¡Hasta luego!")
+            break
+        chat(user_input)
+    except KeyboardInterrupt:
+        print("\n👋 ¡Hasta luego!")
+        break
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        continue
+
+
+
+
+
+
+
+
+
+
