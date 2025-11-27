@@ -1,0 +1,68 @@
+Fases y Componentes Detallados (con Filtros de Año e Idioma)
+Fase 1: Configuración de la Investigación (Input del Usuario Mejorado)
+El agente ahora solicita información más granular para realizar una búsqueda ultra-específica.
+
+Módulo de Entrada de Usuario:
+Tema Central: (Ej: "políticas de reciclaje").
+País: (Ej: "Chile").
+Ciudad / Región: (Ej: "Santiago").
+Rango de Años: (Ej: "2020" a "2025").
+Idiomas de Búsqueda: (Selección múltiple: "Español", "Inglés", "Chino").
+Idioma del Reporte Final: (El idioma en que el usuario quiere recibir el informe, por ejemplo, "Español").
+Fase 2: Motor de Búsqueda Estratificada y Multilingüe (Mejorado)
+Este es el corazón del agente, ahora con capacidades multilingües y de filtrado temporal.
+
+Estrategia de Búsqueda Multilingüe:
+El agente primero traduce el tema central a todos los idiomas seleccionados.
+"políticas de reciclaje" → Inglés: "recycling policies" → Chino (Mandarín): "回收政策" .
+Realiza búsquedas paralelas usando cada término en cada idioma.
+Módulos de Búsqueda (Internacional, Nacional, Local):
+Filtro Temporal: Cada llamada a una API o base de datos (Google Scholar, Scopus, APIs de noticias, etc.) incluye el rango de años (&as_ylo=2020&as_yhi=2025).
+Filtro de Idioma:
+A nivel de API: Muchas APIs permiten especificar el idioma de los resultados (lang=es, lang=en, lang=zh).
+A nivel de post-búsqueda: El agente puede usar herramientas de detección de idioma en los resultados para filtrar aquellos que no coinciden.
+Fuentes por Idioma: El agente prioriza fuentes relevantes para cada idioma.
+Inglés: The Guardian, New York Times, Nature, Science, MIT Technology Review.
+Español: El País, Clarín, Reuters en español, Scielo.
+Chino: Xinhua, People's Daily, CNKI (China National Knowledge Infrastructure - la mayor base de datos académica china).
+Fase 3: Síntesis y Estructuración (Mejorada con Traducción)
+El LLM ahora no solo analiza, sino que también actúa como un traductor experto.
+
+Módulo de Análisis y Síntesis (Impulsado por LLM Multilingüe):
+Análisis Estructural: Para cada documento encontrado (sin importar su idioma original), el agente extrae la información (Autor, Objetivo, Metodología, etc.).
+Traducción y Normalización: Toda la información extraída es traducida y normalizada al idioma del reporte final. Esto permite que el agente compare un estudio en chino con uno en inglés sobre la misma base.
+Síntesis Comparativa: El agente ahora puede realizar análisis más sofisticados:
+"La investigación en inglés entre 2020-2023 se centró en la tecnología de reciclaje de plásticos, mientras que los artículos en español del mismo período se enfocaron más en los modelos de economía circular y la participación ciudadana."
+"Un informe gubernamental chino de 2022 destaca la eficiencia de los sistemas de depósito-reembolso, un enfoque que no aparece en la literatura nacional."
+Fase 4: Presentación de Resultados (Reporte Enriquecido)
+El informe final es un tapiz de información global, temporalmente acotada y completamente integrada.
+
+Módulo de Generación de Reportes:
+1. Tabla Maestra de Antecedentes (con columnas nuevas):
+Autor (Año)
+Nivel
+Idioma Original
+Objetivo
+Metodología
+Resultados Clave
+Smith (2021)	Internacional	Inglés	Evaluar la eficacia de los bots de IA en la clasificación de residuos.	Experimento en laboratorio.	95% de precisión en la clasificación.
+Li et al. (2022)	Internacional	Chino	Analizar la adopción de políticas de "ciudad sin desperdicios" en China.	Análisis de políticas de 15 ciudades.	El éxito depende de la financiación central.
+García (2023)	Nacional (Chile)	Español	Proponer un marco legal para la responsabilidad extendida del productor.	Análisis jurídico comparado.	Se recomienda un modelo basado en el europeo.
+
+* **2. Síntesis Narrativa (con perspectiva global):**
+El texto del informe ahora integra las fuentes de manera fluida, citando el origen lingüístico cuando es relevante.
+
+> "Durante el período 2020-2025, el debate internacional sobre políticas de reciclaje, predominantemente en **inglés**, se ha centrado en la innovación tecnológica. Por ejemplo, **Smith (2021)** demostró la alta precisión de los bots de clasificación. Sin embargo, la experiencia reportada en **chino** por **Li et al. (2022)** sugiere que el factor más determinante no es la tecnología, sino el modelo de gobernanza y financiación. Esta perspectiva, que enfatiza el rol del Estado, resuena con el análisis nacional en **español** de **García (2023)**, quien aboga por un marco legal robusto que obligue a los productores a financiar el reciclaje."
+Ejemplo Práctico: Flujo Completo con Filtros
+Usuario: "Busca antecedentes sobre 'movilidad sostenible' en 'Colombia' y 'Bogotá', entre los años '2022' y '2024', en 'inglés' y 'español'. Quiero el reporte en español."
+Agente (Fase 2):
+Traduce el tema: "movilidad sostenible" → "sustainable mobility".
+Busca en Google Scholar, Scopus, medios colombianos e internacionales con los filtros: año=2022-2024, idioma=es,en.
+Encuentra un artículo en inglés del MIT sobre micromovilidad y una noticia en español del Diario El Tiempo sobre el plan de Bogotá.
+Agente (Fase 3):
+Analiza ambos documentos, extrae sus fichas analíticas.
+Traduce la ficha del artículo del MIT al español.
+Compara ambos hallazgos, notando que la investigación del MIT (tecnología) y la noticia local (política) son dos caras de la misma moneda.
+Agente (Fase 4):
+Genera un informe con la tabla que incluye la columna "Idioma Original" y una síntesis que conecta la tendencia global de micromovilidad con su implementación específica en Bogotá.
+Con esta estructura final, el agente se convierte en una herramienta de investigación extremadamente potente, capaz de realizar en minutos un análisis comparativo global que, de otro modo, llevaría semanas y requeriría un equipo multilingüe.
