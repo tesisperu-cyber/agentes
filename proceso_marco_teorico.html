@@ -1,0 +1,121 @@
+Fases y Componentes Detallados
+
+El funcionamiento del agente se puede dividir en tres fases principales:
+
+Fase 1: Ingesta y Configuración (El Briefing de Investigación)
+
+En esta fase, el agente recopila la información inicial necesaria para entender el alcance y la dirección del trabajo.
+
+Módulo de Entrada de Usuario:
+
+Título o Tema de la Tesis: El área general de estudio.
+
+Pregunta de Investigación e Hipótesis: El núcleo que guiará todo el marco teórico. Es lo más importante.
+
+Palabras Clave Iniciales: Un punto de partida para la búsqueda.
+
+Área de Conocimiento: (Ej: Psicología, Ingeniería de Software, Sociología, Marketing). Esto ayuda al agente a ajustar su lenguaje y las bases de datos que consultará.
+
+Objetivo del Marco Teórico: ¿Debe definir conceptos? ¿Historizar un problema? ¿Debatir teorías contrapuestas? ¿Sustentar la hipótesis?
+
+Fase 2: Procesamiento y Síntesis (El Motor de Investigación)
+
+Este es el "cerebro" del agente, donde realiza el trabajo pesado de investigación y estructuración.
+
+1. Motor de Búsqueda Académica:
+
+Conectores a APIs: Se integra con bases de datos académicas como Google Scholar, Scopus, Web of Science, JSTOR, arXiv, PubMed, etc.
+
+Estrategia de Búsqueda Expansible: No solo busca las palabras clave iniciales. Utiliza técnicas de:
+
+Expansión de consulta: Encuentra sinónimos y términos relacionados.
+
+Análisis de citas: Busca artículos que citen a los trabajos clave encontrados ("búsqueda hacia adelante").
+
+Análisis de referencias: Revisa las bibliografías de los artículos relevantes ("búsqueda hacia atrás").
+
+2. Módulo de Análisis y Comprensión:
+
+Extracción de Entidades: Identifica y extrae automáticamente: teorías, modelos, autores clave, conceptos, definiciones y fechas de cada artículo.
+
+Resumen Semántico: Utiliza un LLM (Large Language Model) para generar resúmenes de cada paper, pero enfocados en su contribución específica al tema de la tesis.
+
+Mapeo de Relaciones: Identifica cómo se relacionan los conceptos: "La Teoría A es una crítica a la Teoría B", "El Autor X aplica el Modelo Y en un nuevo contexto".
+
+3. Motor de Estructuración y Síntesis:
+
+Propuesta de Estructura (Índice): Basado en el análisis, el agente propone un esquema lógico para el marco teórico. Por ejemplo:
+
+1. Introducción al Problema
+
+2. Antecedentes Históricos
+
+3. Definición de Conceptos Clave (Concepto A, Concepto B)
+
+4. Principales Teorías y Modelos
+
+4.1 Teoría Clásica (Autor A, Año)
+
+4.2 Enfoques Contemporáneos (Autor B, Año)
+
+4.3 Críticas y Debates
+
+5. Síntesis y Brecha de Conocimiento (que justifica la tesis)
+
+Generación de Narrativa: Para cada sección del índice, el agente redacta un borrador que sintetiza la información de múltiples fuentes, no solo las resume una tras otra. Crea un flujo lógico que construye un argumento.
+
+Fase 3: Presentación y Validación (La Entrega)
+
+El agente presenta los resultados de una manera útil y accionable para el estudiante.
+
+Módulo de Redacción y Formato:
+
+Generación de Texto Académico: Escribe el contenido del marco teórico con un tono formal, conectores lógicos ("por otro lado", "en consecuencia", "es importante señalar") y una estructura clara.
+
+Integración de Citas: Inserta las citas (Autor, Año) directamente en el texto donde corresponde. Es crucial que esto sea preciso.
+
+Generación de Bibliografía: Crea una lista de referencias en el formato solicitado (APA, MLA, Chicago, etc.) a partir de todas las fuentes utilizadas.
+
+Módulo de Salida y Exportación:
+
+Borrador del Marco Teórico: El documento principal (en formato .docx, .md, o PDF).
+
+Matriz de Fuentes: Una tabla que vincula cada párrafo o afirmación clave con sus fuentes originales. Esto es fundamental para que el estudiante pueda verificar y dar crédito adecuadamente.
+
+Lista de Lectura Recomendada: Una lista de los papers más influyentes que el agente encontró, para una lectura profunda por parte del estudiante.
+
+Flujo de Trabajo Paso a Paso (Ejemplo Práctico)
+
+Usuario: "Mi tesis es sobre 'El impacto del uso de TikTok en la autoestima de adolescentes'. Mi pregunta es: ¿De qué manera la exposición a contenidos idealizados en TikTok se correlaciona con los niveles de ansiedad y auto-percepción en adolescentes de 14 a 17 años?".
+
+Agente (Fase 1): Procesa el tema, la pregunta, extrae palabras clave (TikTok, autoestima, adolescentes, ansiedad, contenidos idealizados, redes sociales).
+
+Agente (Fase 2):
+
+Busca en Google Scholar, PubMed y bases de psicología.
+
+Encuentra 200 artículos relevantes. Los analiza y extrae teorías (ej: "Teoría de la Comparación Social"), conceptos (ej: "cultura del selfie"), y autores clave.
+
+Propone un índice: 1. Adolescencia y Formación de la Identidad, 2. Redes Sociales como Nuevo Entorno Social, 3. TikTok: Características y Algoritmos, 4. Autoestima y Comparación Social en la Era Digital, 5. Evidencia Empírica y Brechas de Investigación.
+
+Agente (Fase 3):
+
+Genera un borrador de 15 páginas siguiendo ese índice, con citas integradas.
+
+Crea una bibliografía con 80 fuentes en formato APA 7.
+
+Entrega una matriz que vincula cada afirmación con los 3-5 papers que la sustentan.
+
+Usuario (Iteración): Revisa el borrador. Ve que la sección 3 es débil. Le dice al agente: "Profundiza más en el algoritmo de recomendación de TikTok y su efecto psicológico".
+
+Agente: Recibe el feedback, realiza una búsqueda más específica y reescribe la sección 3 con la nueva información.
+
+Consideraciones Clave y Rol del Usuario
+
+El Agente es un Asistente, no el Autor: El estudiante es el responsable final. Debe leer, criticar, matizar y aportar su propia voz al texto.
+
+Validación Humana es Esencial: El estudiante debe verificar la precisión de las citas y la interpretación de las teorías. La matriz de fuentes es la herramienta clave para esto.
+
+Integridad Académica: El agente debe estar diseñado para evitar el plagio, generando texto sintético y citando siempre. El uso de este agente debe ser transparente con el tutor de tesis.
+
+En resumen, la estructura de este agente es un sistema complejo que combina búsqueda de información, análisis semántico, planificación lógica y generación de lenguaje natural, todo en un bucle interactivo con el usuario para producir un borrador de alta calidad de una de las partes más desafiantes de una tesis.
