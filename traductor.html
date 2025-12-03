@@ -1,0 +1,263 @@
+✅ CELDA 1 — Instalar dependencias
+
+!pip install -q transformers accelerate sentencepiece gtts pydub ipywidgets
+!apt-get -y install ffmpeg
+
+✅ CELDA 2 — Cargar modelo Qwen2 en pipeline
+
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+import torch
+
+model_name = "Qwen/Qwen2-1.5B-Instruct"
+
+print("⏳ Cargando modelo Qwen2... (esto puede tardar 1-2 minutos)")
+
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+generator = pipeline(
+    "text-generation",
+    model=model,
+    tokenizer=tokenizer,
+    max_new_tokens=400,
+    temperature=0.3,
+    top_p=0.9
+)
+
+print("✅ Modelo Qwen2 cargado correctamente!")
+
+
+
+✅ CELDA 3 — Función de chat usando ChatML
+
+
+def qwen_chat(system_prompt: str, user_prompt: str):
+    """
+    Genera texto usando Qwen2 con el formato ChatML correcto.
+    """
+    prompt = (
+        "<|im_start|>system\n" + system_prompt + "\n<|im_end|>\n"
+        "<|im_start|>user\n" + user_prompt + "\n<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+    output = generator(prompt)[0]["generated_text"]
+
+    # Quitar lo anterior al último <|im_start|>assistant
+    if "<|im_start|>assistant" in output:
+        output = output.split("<|im_start|>assistant")[-1]
+    # Cortar si el modelo vuelve a poner etiquetas
+    if "<|im_start|>" in output:
+        output = output.split("<|im_start|>")[0]
+    if "<|im_end|>" in output:
+        output = output.split("<|im_end|>")[0]
+
+    return output.strip()
+
+print("✅ Función qwen_chat lista!")
+
+
+
+
+✅ CELDA 4 — Funciones de traducción
+
+
+
+def traducir(texto_espanol: str, idioma_destino: str) -> str:
+    """
+    Traduce texto del español al idioma destino.
+    idioma_destino: 'English', 'Chinese', 'Portuguese', 'German'
+    """
+    system_prompt = f"""You are a professional translator.
+Translate the given Spanish text to {idioma_destino}.
+IMPORTANT: Only respond with the translation, nothing else. No explanations."""
+
+    user_prompt = f"Translate this Spanish text to {idioma_destino}:\n\n{texto_espanol}"
+
+    traduccion = qwen_chat(system_prompt, user_prompt)
+
+    # Limpiar posibles artefactos
+    lineas = traduccion.split('\n')
+    traduccion_limpia = []
+    for linea in lineas:
+        linea = linea.strip()
+        if linea and not linea.lower().startswith(('translation:', 'here', 'the translation')):
+            traduccion_limpia.append(linea)
+
+    return ' '.join(traduccion_limpia) if traduccion_limpia else traduccion
+
+
+def traducir_todos(texto_espanol: str) -> dict:
+    """
+    Traduce el texto español a los 4 idiomas.
+    Retorna un diccionario con las traducciones.
+    """
+    idiomas = {
+        'Inglés': 'English',
+        'Chino': 'Chinese (Simplified)',
+        'Portugués': 'Portuguese',
+        'Alemán': 'German'
+    }
+
+    traducciones = {'Español': texto_espanol}
+
+    for nombre, idioma_api in idiomas.items():
+        print(f"⏳ Traduciendo a {nombre}...")
+        traducciones[nombre] = traducir(texto_espanol, idioma_api)
+        print(f"✅ {nombre} completado!")
+
+    return traducciones
+
+print("✅ Funciones de traducción listas!")
+
+
+✅ CELDA 5 — Generar audios con gTTS
+
+
+!
+!pip install gtts
+
+from gtts import gTTS
+from IPython.display import Audio, display, HTML
+import os
+
+# Crear carpeta para audios
+os.makedirs('audios', exist_ok=True)
+
+# Mapeo de idiomas para gTTS
+GTTS_LANG_MAP = {
+    'Español': 'es',
+    'Inglés': 'en',
+    'Chino': 'zh-CN',
+    'Portugués': 'pt',
+    'Alemán': 'de'
+}
+
+def generar_audio(texto: str, idioma: str, nombre_archivo: str) -> str:
+    """
+    Genera un archivo de audio MP3 a partir del texto.
+    """
+    codigo_idioma = GTTS_LANG_MAP.get(idioma, 'en')
+    ruta = f"audios/{nombre_archivo}.mp3"
+
+    try:
+        tts = gTTS(text=texto, lang=codigo_idioma, slow=False)
+        tts.save(ruta)
+        return ruta
+    except Exception as e:
+        print(f"⚠️ Error generando audio para {idioma}: {e}", e)
+        return None
+
+
+def generar_todos_audios(traducciones: dict) -> dict:
+    """
+    Genera audios para todas las traducciones.
+    """
+    audios = {}
+
+    for idioma, texto in traducciones.items():
+        print(f"🔊 Generando audio en {idioma}...")
+        nombre = idioma.lower().replace('é', 'e').replace('á', 'a')
+        ruta = generar_audio(texto, idioma, nombre)
+        if ruta:
+            audios[idioma] = ruta
+            print(f"✅ Audio {idioma} generado!")
+
+    return audios
+
+print("✅ Funciones de audio listas!")
+
+✅ CELDA 6 — Función principal del traductor
+
+
+from IPython.display import display, HTML, Audio, clear_output
+
+def mostrar_resultado(traducciones: dict, audios: dict):
+    """
+    Muestra las traducciones y audios de forma bonita.
+    """
+    # Banderas emoji para cada idioma
+    banderas = {
+        'Español': '🇪🇸',
+        'Inglés': '🇬🇧',
+        'Chino': '🇨🇳',
+        'Portugués': '🇧🇷',
+        'Alemán': '🇩🇪'
+    }
+
+    # Mostrar traducciones
+    print("\n" + "="*60)
+    print("📝 TRADUCCIONES")
+    print("="*60)
+
+    for idioma, texto in traducciones.items():
+        bandera = banderas.get(idioma, '🌐')
+        print(f"\n{bandera} {idioma.upper()}:")
+        print(f"   {texto}")
+
+    # Mostrar audios
+    print("\n" + "="*60)
+    print("🔊 AUDIOS DE LAS TRADUCCIONES")
+    print("="*60)
+
+    for idioma, ruta in audios.items():
+        bandera = banderas.get(idioma, '🌐')
+        print(f"\n{bandera} Audio en {idioma}:")
+        display(Audio(ruta, autoplay=False))
+
+
+def traductor_completo(texto_espanol: str):
+    """
+    Función principal que traduce y genera audios.
+    """
+    print("\n🚀 INICIANDO TRADUCTOR MULTILINGÜE")
+    print("="*60)
+    print(f"📄 Texto original: {texto_espanol}")
+    print("="*60)
+
+    # Paso 1: Traducir
+    print("\n📚 PASO 1: Traduciendo texto...")
+    print("-"*40)
+    traducciones = traducir_todos(texto_espanol)
+
+    # Paso 2: Generar audios
+    print("\n🎵 PASO 2: Generando audios...")
+    print("-"*40)
+    audios = generar_todos_audios(traducciones)
+
+    # Paso 3: Mostrar resultados
+    mostrar_resultado(traducciones, audios)
+
+    return traducciones, audios
+
+print("✅ Traductor completo listo!")
+
+
+
+🎯 CELDA 7 — ¡USAR EL TRADUCTOR!
+Escribe tu texto en español aquí 👇
+
+
+
+
+# ============================================
+# ✏️ ESCRIBE TU TEXTO EN ESPAÑOL AQUÍ:
+# ============================================
+
+mi_texto = "Hola, ¿cómo estás? Me alegra mucho conocerte."
+
+# ============================================
+# 🚀 Ejecutar traducción
+# ============================================
+traducciones, audios = traductor_completo(mi_texto)
+
+
+
+
+
+
+
+
