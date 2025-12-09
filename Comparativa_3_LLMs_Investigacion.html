@@ -1,0 +1,675 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "toc_visible": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "# 🧠 Comparativa de 3 LLMs Gratuitos\n",
+        "\n",
+        "## Generador de Problemas, Objetivos e Hipótesis\n",
+        "\n",
+        "| Proveedor | Modelo | Velocidad |\n",
+        "|-----------|--------|----------|\n",
+        "| 🟢 **Groq** | Llama 3.3 70B | ⚡ Muy rápido |\n",
+        "| 🟡 **Google Gemini** | Gemini 2.0 Flash | ⚡ Rápido |\n",
+        "| 🟠 **HuggingFace** | Qwen 2.5 72B | 🐢 Normal |\n",
+        "\n",
+        "---\n",
+        "**Objetivo:** Comparar cuál genera mejores diseños de investigación"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## 📦 Instalación de Dependencias"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "!pip install groq google-generativeai huggingface_hub -q\n",
+        "print(\"✅ Dependencias instaladas\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## 🔑 Configurar API Keys\n",
+        "\n",
+        "⚠️ **IMPORTANTE:** Reemplaza con tus API Keys"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# ============================================\n",
+        "# 🔐 INGRESA TUS API KEYS AQUÍ\n",
+        "# ============================================\n",
+        "\n",
+        "GROQ_API_KEY = \"tu-api-key-de-groq\"           # console.groq.com\n",
+        "GEMINI_API_KEY = \"tu-api-key-de-gemini\"       # aistudio.google.com\n",
+        "HF_API_KEY = \"tu-api-key-de-huggingface\"      # huggingface.co/settings/tokens\n",
+        "\n",
+        "print(\"✅ API Keys configuradas\")\n",
+        "print(f\"   Groq: {'✓' if GROQ_API_KEY != 'tu-api-key-de-groq' else '✗ Falta'}\")\n",
+        "print(f\"   Gemini: {'✓' if GEMINI_API_KEY != 'tu-api-key-de-gemini' else '✗ Falta'}\")\n",
+        "print(f\"   HuggingFace: {'✓' if HF_API_KEY != 'tu-api-key-de-huggingface' else '✗ Falta'}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## 🤖 Configurar los 3 Clientes LLM"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "import time\n",
+        "from groq import Groq\n",
+        "import google.generativeai as genai\n",
+        "from huggingface_hub import InferenceClient\n",
+        "\n",
+        "# ============================================\n",
+        "# 🟢 GROQ - Llama 3.3 70B\n",
+        "# ============================================\n",
+        "def consultar_groq(prompt: str) -> dict:\n",
+        "    \"\"\"Consulta a Groq con Llama 3.3 70B\"\"\"\n",
+        "    try:\n",
+        "        client = Groq(api_key=GROQ_API_KEY)\n",
+        "        inicio = time.time()\n",
+        "        \n",
+        "        response = client.chat.completions.create(\n",
+        "            model=\"llama-3.3-70b-versatile\",\n",
+        "            messages=[{\"role\": \"user\", \"content\": prompt}],\n",
+        "            temperature=0.7,\n",
+        "            max_tokens=2000\n",
+        "        )\n",
+        "        \n",
+        "        tiempo = round(time.time() - inicio, 2)\n",
+        "        return {\n",
+        "            \"respuesta\": response.choices[0].message.content,\n",
+        "            \"tiempo\": tiempo,\n",
+        "            \"modelo\": \"Llama 3.3 70B\",\n",
+        "            \"proveedor\": \"Groq\",\n",
+        "            \"error\": None\n",
+        "        }\n",
+        "    except Exception as e:\n",
+        "        return {\"respuesta\": None, \"tiempo\": 0, \"modelo\": \"Llama 3.3 70B\", \"proveedor\": \"Groq\", \"error\": str(e)}\n",
+        "\n",
+        "# ============================================\n",
+        "# 🟡 GOOGLE GEMINI - Gemini 2.0 Flash\n",
+        "# ============================================\n",
+        "def consultar_gemini(prompt: str) -> dict:\n",
+        "    \"\"\"Consulta a Google Gemini 2.0 Flash\"\"\"\n",
+        "    try:\n",
+        "        genai.configure(api_key=GEMINI_API_KEY)\n",
+        "        model = genai.GenerativeModel('gemini-2.0-flash')\n",
+        "        inicio = time.time()\n",
+        "        \n",
+        "        response = model.generate_content(prompt)\n",
+        "        \n",
+        "        tiempo = round(time.time() - inicio, 2)\n",
+        "        return {\n",
+        "            \"respuesta\": response.text,\n",
+        "            \"tiempo\": tiempo,\n",
+        "            \"modelo\": \"Gemini 2.0 Flash\",\n",
+        "            \"proveedor\": \"Google\",\n",
+        "            \"error\": None\n",
+        "        }\n",
+        "    except Exception as e:\n",
+        "        return {\"respuesta\": None, \"tiempo\": 0, \"modelo\": \"Gemini 2.0 Flash\", \"proveedor\": \"Google\", \"error\": str(e)}\n",
+        "\n",
+        "# ============================================\n",
+        "# 🟠 HUGGINGFACE - Qwen 2.5 72B\n",
+        "# ============================================\n",
+        "def consultar_huggingface(prompt: str) -> dict:\n",
+        "    \"\"\"Consulta a HuggingFace con Qwen 2.5 72B\"\"\"\n",
+        "    try:\n",
+        "        client = InferenceClient(api_key=HF_API_KEY)\n",
+        "        inicio = time.time()\n",
+        "        \n",
+        "        response = client.chat.completions.create(\n",
+        "            model=\"Qwen/Qwen2.5-72B-Instruct\",\n",
+        "            messages=[{\"role\": \"user\", \"content\": prompt}],\n",
+        "            max_tokens=2000\n",
+        "        )\n",
+        "        \n",
+        "        tiempo = round(time.time() - inicio, 2)\n",
+        "        return {\n",
+        "            \"respuesta\": response.choices[0].message.content,\n",
+        "            \"tiempo\": tiempo,\n",
+        "            \"modelo\": \"Qwen 2.5 72B\",\n",
+        "            \"proveedor\": \"HuggingFace\",\n",
+        "            \"error\": None\n",
+        "        }\n",
+        "    except Exception as e:\n",
+        "        return {\"respuesta\": None, \"tiempo\": 0, \"modelo\": \"Qwen 2.5 72B\", \"proveedor\": \"HuggingFace\", \"error\": str(e)}\n",
+        "\n",
+        "print(\"✅ Clientes LLM configurados\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## 📝 Definir el Prompt para Investigación"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "def crear_prompt(tema: str, vd: str, vis: list, poblacion: str, lugar: str, nivel: str) -> str:\n",
+        "    \"\"\"Crea el prompt para generar diseño de investigación\"\"\"\n",
+        "    \n",
+        "    vi_texto = \", \".join(vis)\n",
+        "    \n",
+        "    prompt = f\"\"\"Eres un experto en metodología de investigación científica.\n",
+        "\n",
+        "TEMA: {tema}\n",
+        "VARIABLE DEPENDIENTE: {vd}\n",
+        "VARIABLES INDEPENDIENTES: {vi_texto}\n",
+        "POBLACIÓN: {poblacion}\n",
+        "LUGAR: {lugar}\n",
+        "NIVEL DE INVESTIGACIÓN: {nivel}\n",
+        "\n",
+        "Genera el diseño de investigación para el nivel {nivel} con los siguientes elementos:\n",
+        "\n",
+        "1. PLANTEAMIENTO DEL PROBLEMA (2-3 oraciones que describan la problemática)\n",
+        "\n",
+        "2. PREGUNTA GENERAL DE INVESTIGACIÓN\n",
+        "\n",
+        "3. PREGUNTAS ESPECÍFICAS (3 preguntas)\n",
+        "\n",
+        "4. OBJETIVO GENERAL\n",
+        "\n",
+        "5. OBJETIVOS ESPECÍFICOS (3 objetivos)\n",
+        "\n",
+        "6. HIPÓTESIS (si aplica para el nivel {nivel}):\n",
+        "   - Hipótesis general\n",
+        "   - Hipótesis nula (H₀)\n",
+        "   - Hipótesis alterna (H₁)\n",
+        "\n",
+        "7. METODOLOGÍA SUGERIDA (tipo de estudio, diseño, técnicas estadísticas)\n",
+        "\n",
+        "IMPORTANTE:\n",
+        "- Usa redacción académica formal\n",
+        "- Sé específico con las variables mencionadas\n",
+        "- Si el nivel es Exploratorio o Descriptivo, indica que NO lleva hipótesis\n",
+        "- Responde en español\n",
+        "\"\"\"\n",
+        "    return prompt\n",
+        "\n",
+        "print(\"✅ Función de prompt creada\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "## 🎯 Configurar Tu Investigación"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# ============================================\n",
+        "# 📝 CONFIGURA TU TEMA AQUÍ\n",
+        "# ============================================\n",
+        "\n",
+        "MI_TEMA = \"Estrés laboral en bomberos\"\n",
+        "MI_VARIABLE_DEPENDIENTE = \"estrés laboral\"\n",
+        "MIS_VARIABLES_INDEPENDIENTES = [\"años de servicio\", \"carga horaria\", \"condiciones laborales\"]\n",
+        "MI_POBLACION = \"bomberos\"\n",
+        "MI_LUGAR = \"Cuerpo de Bomberos del Cantón Ventanas, Ecuador\"\n",
+        "MI_NIVEL = \"Correlacional\"  # Opciones: Exploratorio, Descriptivo, Correlacional, Explicativo, Predictivo, Aplicativo\n",
+        "\n",
+        "print(f\"📋 Configuración:\")\n",
+        "print(f\"   Tema: {MI_TEMA}\")\n",
+        "print(f\"   VD: {MI_VARIABLE_DEPENDIENTE}\")\n",
+        "print(f\"   VI: {MIS_VARIABLES_INDEPENDIENTES}\")\n",
+        "print(f\"   Población: {MI_POBLACION}\")\n",
+        "print(f\"   Lugar: {MI_LUGAR}\")\n",
+        "print(f\"   Nivel: {MI_NIVEL}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "# 🚀 COMPARATIVA DE LOS 3 LLMs"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Crear el prompt\n",
+        "prompt = crear_prompt(\n",
+        "    tema=MI_TEMA,\n",
+        "    vd=MI_VARIABLE_DEPENDIENTE,\n",
+        "    vis=MIS_VARIABLES_INDEPENDIENTES,\n",
+        "    poblacion=MI_POBLACION,\n",
+        "    lugar=MI_LUGAR,\n",
+        "    nivel=MI_NIVEL\n",
+        ")\n",
+        "\n",
+        "print(\"📤 Prompt creado\")\n",
+        "print(f\"   Longitud: {len(prompt)} caracteres\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### 🟢 Respuesta de GROQ (Llama 3.3 70B)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "print(\"⏳ Consultando Groq...\")\n",
+        "resultado_groq = consultar_groq(prompt)\n",
+        "\n",
+        "print(\"\\n\" + \"=\"*70)\n",
+        "print(\"🟢 GROQ - Llama 3.3 70B\")\n",
+        "print(\"=\"*70)\n",
+        "\n",
+        "if resultado_groq[\"error\"]:\n",
+        "    print(f\"❌ Error: {resultado_groq['error']}\")\n",
+        "else:\n",
+        "    print(f\"⏱️ Tiempo: {resultado_groq['tiempo']} segundos\")\n",
+        "    print(\"\\n\" + resultado_groq[\"respuesta\"])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### 🟡 Respuesta de GOOGLE GEMINI (Gemini 2.0 Flash)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "print(\"⏳ Consultando Google Gemini...\")\n",
+        "resultado_gemini = consultar_gemini(prompt)\n",
+        "\n",
+        "print(\"\\n\" + \"=\"*70)\n",
+        "print(\"🟡 GOOGLE GEMINI - Gemini 2.0 Flash\")\n",
+        "print(\"=\"*70)\n",
+        "\n",
+        "if resultado_gemini[\"error\"]:\n",
+        "    print(f\"❌ Error: {resultado_gemini['error']}\")\n",
+        "else:\n",
+        "    print(f\"⏱️ Tiempo: {resultado_gemini['tiempo']} segundos\")\n",
+        "    print(\"\\n\" + resultado_gemini[\"respuesta\"])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### 🟠 Respuesta de HUGGINGFACE (Qwen 2.5 72B)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "print(\"⏳ Consultando HuggingFace...\")\n",
+        "resultado_hf = consultar_huggingface(prompt)\n",
+        "\n",
+        "print(\"\\n\" + \"=\"*70)\n",
+        "print(\"🟠 HUGGINGFACE - Qwen 2.5 72B\")\n",
+        "print(\"=\"*70)\n",
+        "\n",
+        "if resultado_hf[\"error\"]:\n",
+        "    print(f\"❌ Error: {resultado_hf['error']}\")\n",
+        "else:\n",
+        "    print(f\"⏱️ Tiempo: {resultado_hf['tiempo']} segundos\")\n",
+        "    print(\"\\n\" + resultado_hf[\"respuesta\"])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "## 📊 TABLA COMPARATIVA DE RESULTADOS"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "print(\"\\n\" + \"=\"*70)\n",
+        "print(\"📊 RESUMEN COMPARATIVO\")\n",
+        "print(\"=\"*70)\n",
+        "\n",
+        "resultados = [resultado_groq, resultado_gemini, resultado_hf]\n",
+        "\n",
+        "print(f\"\\n{'Proveedor':<15} {'Modelo':<20} {'Tiempo':<12} {'Estado'}\")\n",
+        "print(\"-\"*60)\n",
+        "\n",
+        "for r in resultados:\n",
+        "    estado = \"✅ OK\" if not r[\"error\"] else \"❌ Error\"\n",
+        "    tiempo = f\"{r['tiempo']}s\" if not r[\"error\"] else \"--\"\n",
+        "    print(f\"{r['proveedor']:<15} {r['modelo']:<20} {tiempo:<12} {estado}\")\n",
+        "\n",
+        "# Encontrar el más rápido\n",
+        "tiempos_validos = [(r['proveedor'], r['tiempo']) for r in resultados if not r['error'] and r['tiempo'] > 0]\n",
+        "if tiempos_validos:\n",
+        "    mas_rapido = min(tiempos_validos, key=lambda x: x[1])\n",
+        "    print(f\"\\n🏆 Más rápido: {mas_rapido[0]} ({mas_rapido[1]}s)\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "## 🔄 Probar con TODOS los Niveles"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "NIVELES = [\"Exploratorio\", \"Descriptivo\", \"Correlacional\", \"Explicativo\", \"Predictivo\", \"Aplicativo\"]\n",
+        "\n",
+        "def generar_todos_niveles(llm_func, nombre_llm: str):\n",
+        "    \"\"\"Genera diseños para todos los niveles con un LLM\"\"\"\n",
+        "    print(f\"\\n{'='*70}\")\n",
+        "    print(f\"🤖 Generando con {nombre_llm}\")\n",
+        "    print(f\"{'='*70}\")\n",
+        "    \n",
+        "    resultados = {}\n",
+        "    \n",
+        "    for nivel in NIVELES:\n",
+        "        print(f\"\\n⏳ Procesando nivel {nivel}...\")\n",
+        "        \n",
+        "        prompt = crear_prompt(\n",
+        "            tema=MI_TEMA,\n",
+        "            vd=MI_VARIABLE_DEPENDIENTE,\n",
+        "            vis=MIS_VARIABLES_INDEPENDIENTES,\n",
+        "            poblacion=MI_POBLACION,\n",
+        "            lugar=MI_LUGAR,\n",
+        "            nivel=nivel\n",
+        "        )\n",
+        "        \n",
+        "        resultado = llm_func(prompt)\n",
+        "        resultados[nivel] = resultado\n",
+        "        \n",
+        "        if resultado[\"error\"]:\n",
+        "            print(f\"   ❌ Error: {resultado['error']}\")\n",
+        "        else:\n",
+        "            print(f\"   ✅ Completado en {resultado['tiempo']}s\")\n",
+        "    \n",
+        "    return resultados\n",
+        "\n",
+        "print(\"✅ Función lista\")\n",
+        "print(\"\\n💡 Ejecuta la siguiente celda para generar todos los niveles con un LLM\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# ============================================\n",
+        "# Elige cuál LLM usar para generar todo:\n",
+        "# ============================================\n",
+        "\n",
+        "# Opción 1: Groq (más rápido)\n",
+        "# todos_niveles = generar_todos_niveles(consultar_groq, \"Groq - Llama 3.3\")\n",
+        "\n",
+        "# Opción 2: Gemini\n",
+        "# todos_niveles = generar_todos_niveles(consultar_gemini, \"Google Gemini\")\n",
+        "\n",
+        "# Opción 3: HuggingFace\n",
+        "# todos_niveles = generar_todos_niveles(consultar_huggingface, \"HuggingFace - Qwen\")\n",
+        "\n",
+        "print(\"💡 Descomenta una opción y ejecuta\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Ver resultado de un nivel específico\n",
+        "# print(todos_niveles[\"Correlacional\"][\"respuesta\"])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "## 💾 Guardar Resultados"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "def guardar_resultados(resultados: dict, nombre_archivo: str):\n",
+        "    \"\"\"Guarda los resultados en un archivo de texto\"\"\"\n",
+        "    \n",
+        "    with open(nombre_archivo, \"w\", encoding=\"utf-8\") as f:\n",
+        "        f.write(f\"LÍNEA DE INVESTIGACIÓN\\n\")\n",
+        "        f.write(f\"Tema: {MI_TEMA}\\n\")\n",
+        "        f.write(f\"=\"*70 + \"\\n\\n\")\n",
+        "        \n",
+        "        for nivel, data in resultados.items():\n",
+        "            f.write(f\"\\n{'='*70}\\n\")\n",
+        "            f.write(f\"NIVEL: {nivel.upper()}\\n\")\n",
+        "            f.write(f\"{'='*70}\\n\\n\")\n",
+        "            \n",
+        "            if data[\"error\"]:\n",
+        "                f.write(f\"Error: {data['error']}\\n\")\n",
+        "            else:\n",
+        "                f.write(data[\"respuesta\"])\n",
+        "            \n",
+        "            f.write(\"\\n\")\n",
+        "    \n",
+        "    print(f\"✅ Guardado en: {nombre_archivo}\")\n",
+        "\n",
+        "# Uso:\n",
+        "# guardar_resultados(todos_niveles, \"mi_linea_investigacion.txt\")\n",
+        "\n",
+        "# Descargar en Colab:\n",
+        "# from google.colab import files\n",
+        "# files.download(\"mi_linea_investigacion.txt\")\n",
+        "\n",
+        "print(\"💡 Función de guardado lista\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "## 🎯 Función Todo-en-Uno"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "def generar_investigacion_completa(\n",
+        "    tema: str,\n",
+        "    vd: str,\n",
+        "    vis: list,\n",
+        "    poblacion: str,\n",
+        "    lugar: str,\n",
+        "    nivel: str = \"Correlacional\",\n",
+        "    llm: str = \"groq\"  # \"groq\", \"gemini\", \"huggingface\"\n",
+        "):\n",
+        "    \"\"\"\n",
+        "    Función completa para generar diseño de investigación\n",
+        "    \n",
+        "    Parámetros:\n",
+        "    - tema: Título del tema de investigación\n",
+        "    - vd: Variable dependiente\n",
+        "    - vis: Lista de variables independientes\n",
+        "    - poblacion: Población de estudio\n",
+        "    - lugar: Lugar del estudio\n",
+        "    - nivel: Nivel de investigación\n",
+        "    - llm: Qué LLM usar (\"groq\", \"gemini\", \"huggingface\")\n",
+        "    \"\"\"\n",
+        "    \n",
+        "    # Seleccionar LLM\n",
+        "    llm_funcs = {\n",
+        "        \"groq\": consultar_groq,\n",
+        "        \"gemini\": consultar_gemini,\n",
+        "        \"huggingface\": consultar_huggingface\n",
+        "    }\n",
+        "    \n",
+        "    llm_func = llm_funcs.get(llm.lower(), consultar_groq)\n",
+        "    \n",
+        "    # Crear prompt\n",
+        "    prompt = crear_prompt(tema, vd, vis, poblacion, lugar, nivel)\n",
+        "    \n",
+        "    # Consultar\n",
+        "    print(f\"🤖 Generando con {llm.upper()}...\")\n",
+        "    resultado = llm_func(prompt)\n",
+        "    \n",
+        "    # Mostrar\n",
+        "    print(\"\\n\" + \"=\"*70)\n",
+        "    print(f\"📊 NIVEL {nivel.upper()}\")\n",
+        "    print(\"=\"*70)\n",
+        "    \n",
+        "    if resultado[\"error\"]:\n",
+        "        print(f\"❌ Error: {resultado['error']}\")\n",
+        "    else:\n",
+        "        print(f\"⏱️ Tiempo: {resultado['tiempo']}s\")\n",
+        "        print(\"\\n\" + resultado[\"respuesta\"])\n",
+        "    \n",
+        "    return resultado\n",
+        "\n",
+        "print(\"✅ Función todo-en-uno lista\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "### 🚀 Uso Rápido"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# ============================================\n",
+        "# 🎯 GENERA TU INVESTIGACIÓN AQUÍ\n",
+        "# ============================================\n",
+        "\n",
+        "resultado = generar_investigacion_completa(\n",
+        "    tema=\"Estrés laboral en bomberos\",\n",
+        "    vd=\"estrés laboral\",\n",
+        "    vis=[\"años de servicio\", \"carga horaria\"],\n",
+        "    poblacion=\"bomberos\",\n",
+        "    lugar=\"Cantón Ventanas, Ecuador\",\n",
+        "    nivel=\"Correlacional\",  # Cambia el nivel aquí\n",
+        "    llm=\"groq\"              # Cambia el LLM: \"groq\", \"gemini\", \"huggingface\"\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "---\n",
+        "## 📋 Resumen de Niveles"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "resumen = \"\"\"\n",
+        "╔══════════════════════════════════════════════════════════════════════╗\n",
+        "║                    NIVELES DE INVESTIGACIÓN                          ║\n",
+        "╠══════════════╦═══════════════════════╦═══════════════════════════════╣\n",
+        "║    NIVEL     ║       PREGUNTA        ║          HIPÓTESIS            ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Exploratorio ║ ¿Qué es? ¿Cómo es?    ║ ❌ NO LLEVA                    ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Descriptivo  ║ ¿Cuánto? ¿Cuál es?    ║ ❌ NO LLEVA                    ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Correlacional║ ¿Existe relación?     ║ ✅ SÍ: H₀ (ρ=0) / H₁ (ρ≠0)    ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Explicativo  ║ ¿Por qué? ¿Qué causa? ║ ✅ SÍ: Causa → Efecto          ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Predictivo   ║ ¿Qué pasará si...?    ║ ✅ SÍ: Modelo R²               ║\n",
+        "╠══════════════╬═══════════════════════╬═══════════════════════════════╣\n",
+        "║ Aplicativo   ║ ¿Funciona?            ║ ✅ SÍ: H₀ (μ1=μ2) / H₁ (μ1≠μ2)║\n",
+        "╚══════════════╩═══════════════════════╩═══════════════════════════════╝\n",
+        "\n",
+        "🟢 Groq     → Más rápido (Llama 3.3 70B)\n",
+        "🟡 Gemini   → Google (Gemini 2.0 Flash)\n",
+        "🟠 HuggingFace → Qwen 2.5 72B\n",
+        "\"\"\"\n",
+        "print(resumen)"
+      ]
+    }
+  ]
+}
