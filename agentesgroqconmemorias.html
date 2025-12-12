@@ -1,0 +1,290 @@
+# =============================================================================
+# MEMORIAS EN AGENTES - VERSIÓN GRATUITA CON GROQ
+# =============================================================================
+
+# Instalación
+!pip install groq -q
+
+import json
+from datetime import datetime
+from google.colab import userdata
+from groq import Groq
+
+# =============================================================================
+# CONFIGURACIÓN - API KEY GRATIS
+# =============================================================================
+# 1. Ve a: https://console.groq.com/keys
+# 2. Crea cuenta gratis (con Google o GitHub)
+# 3. Genera una API key
+# 4. En Colab: Click en 🔑 (Secrets) → Agrega "GROQ_API_KEY"
+
+client = Groq(api_key=userdata.get('GROQ_API_KEY'))
+
+# Modelos disponibles gratis en Groq:
+# - llama-3.3-70b-versatile (muy bueno, recomendado)
+# - llama-3.1-8b-instant (más rápido)
+# - mixtral-8x7b-32768 (buen balance)
+# - gemma2-9b-it
+
+MODELO = "llama-3.3-70b-versatile"  # Cambia si quieres probar otros
+
+# =============================================================================
+# EJEMPLO 1: Agente SIN memoria (cada llamada es independiente)
+# =============================================================================
+
+def agente_sin_memoria(mensaje: str) -> str:
+    """Agente básico sin memoria - no recuerda nada entre llamadas"""
+    response = client.chat.completions.create(
+        model=MODELO,
+        max_tokens=1024,
+        messages=[
+            {"role": "user", "content": mensaje}
+        ]
+    )
+    return response.choices[0].message.content
+
+# Prueba
+print("=== AGENTE SIN MEMORIA ===")
+print(agente_sin_memoria("Me llamo Carlos y trabajo como bombero"))
+print("\n--- Segunda llamada ---")
+print(agente_sin_memoria("¿Cómo me llamo?"))  # No recordará
+
+
+# =============================================================================
+# EJEMPLO 2: Agente con memoria de CONVERSACIÓN (corto plazo)
+# =============================================================================
+
+class AgenteConversacional:
+    """Agente que mantiene el historial de la conversación actual"""
+    
+    def __init__(self):
+        self.historial = []
+    
+    def chat(self, mensaje: str) -> str:
+        # Agregar mensaje del usuario al historial
+        self.historial.append({"role": "user", "content": mensaje})
+        
+        response = client.chat.completions.create(
+            model=MODELO,
+            max_tokens=1024,
+            messages=self.historial  # Pasamos TODO el historial
+        )
+        
+        respuesta = response.choices[0].message.content
+        
+        # Agregar respuesta al historial
+        self.historial.append({"role": "assistant", "content": respuesta})
+        
+        return respuesta
+    
+    def reiniciar(self):
+        self.historial = []
+
+# Prueba
+print("\n=== AGENTE CON MEMORIA DE CONVERSACIÓN ===")
+agente = AgenteConversacional()
+print(agente.chat("Me llamo Carlos y soy bombero en Ventanas, Ecuador"))
+print("\n--- Segunda llamada ---")
+print(agente.chat("¿Qué te dije sobre mi trabajo?"))  # ¡Sí recordará!
+
+
+# =============================================================================
+# EJEMPLO 3: Agente con memoria PERSISTENTE (largo plazo)
+# =============================================================================
+
+class AgenteConMemoriaPersistente:
+    """
+    Agente que guarda información importante entre sesiones.
+    En producción usarías una base de datos real (MySQL, Redis, etc.)
+    """
+    
+    def __init__(self, archivo_memoria: str = "memoria_agente.json"):
+        self.archivo = archivo_memoria
+        self.historial = []
+        self.memoria_largo_plazo = self._cargar_memoria()
+    
+    def _cargar_memoria(self) -> dict:
+        """Carga la memoria desde archivo"""
+        try:
+            with open(self.archivo, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {
+                "datos_usuario": {},
+                "preferencias": {},
+                "historial_resumido": [],
+                "ultima_interaccion": None
+            }
+    
+    def _guardar_memoria(self):
+        """Guarda la memoria en archivo"""
+        self.memoria_largo_plazo["ultima_interaccion"] = datetime.now().isoformat()
+        with open(self.archivo, 'w') as f:
+            json.dump(self.memoria_largo_plazo, f, indent=2, ensure_ascii=False)
+    
+    def _construir_contexto(self) -> str:
+        """Construye el contexto a partir de la memoria"""
+        contexto = "Información que recuerdo sobre el usuario:\n"
+        
+        if self.memoria_largo_plazo["datos_usuario"]:
+            contexto += f"- Datos: {json.dumps(self.memoria_largo_plazo['datos_usuario'], ensure_ascii=False)}\n"
+        
+        if self.memoria_largo_plazo["preferencias"]:
+            contexto += f"- Preferencias: {json.dumps(self.memoria_largo_plazo['preferencias'], ensure_ascii=False)}\n"
+        
+        if self.memoria_largo_plazo["historial_resumido"]:
+            contexto += f"- Resumen de conversaciones anteriores: {self.memoria_largo_plazo['historial_resumido'][-5:]}\n"
+        
+        return contexto if len(contexto) > 50 else ""
+    
+    def _extraer_informacion(self, mensaje: str, respuesta: str):
+        """
+        Usa el LLM para extraer información importante de la conversación.
+        Esta es la "magia" - el modelo decide qué vale la pena recordar.
+        """
+        prompt_extraccion = f"""Analiza esta conversación y extrae SOLO información importante para recordar.
+Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown, sin explicaciones.
+Formato exacto:
+{{"datos_usuario": {{"campo": "valor"}}, "preferencias": {{"preferencia": "valor"}}, "resumen": "breve resumen"}}
+
+Si no hay nada importante: {{"datos_usuario": {{}}, "preferencias": {{}}, "resumen": ""}}
+
+Usuario dijo: {mensaje}
+Asistente respondió: {respuesta}
+
+JSON:"""
+        
+        try:
+            extraction = client.chat.completions.create(
+                model=MODELO,
+                max_tokens=500,
+                temperature=0.1,  # Más determinístico para JSON
+                messages=[{"role": "user", "content": prompt_extraccion}]
+            )
+            
+            texto_respuesta = extraction.choices[0].message.content.strip()
+            
+            # Limpiar posibles artefactos de markdown
+            if texto_respuesta.startswith("```"):
+                texto_respuesta = texto_respuesta.split("```")[1]
+                if texto_respuesta.startswith("json"):
+                    texto_respuesta = texto_respuesta[4:]
+            texto_respuesta = texto_respuesta.strip()
+            
+            resultado = json.loads(texto_respuesta)
+            
+            # Actualizar memoria
+            self.memoria_largo_plazo["datos_usuario"].update(resultado.get("datos_usuario", {}))
+            self.memoria_largo_plazo["preferencias"].update(resultado.get("preferencias", {}))
+            
+            if resultado.get("resumen"):
+                self.memoria_largo_plazo["historial_resumido"].append({
+                    "fecha": datetime.now().isoformat(),
+                    "resumen": resultado["resumen"]
+                })
+            
+            self._guardar_memoria()
+            
+        except (json.JSONDecodeError, Exception) as e:
+            print(f"⚠️ Error extrayendo información: {e}")
+    
+    def chat(self, mensaje: str) -> str:
+        """Procesa un mensaje con contexto de memoria"""
+        
+        # Construir el system prompt con la memoria
+        system_prompt = f"""Eres un asistente personal útil y amigable. Responde en español.
+
+{self._construir_contexto()}
+
+Usa esta información naturalmente en la conversación cuando sea relevante.
+No menciones explícitamente que "recuerdas" cosas, simplemente úsalas."""
+        
+        self.historial.append({"role": "user", "content": mensaje})
+        
+        # Groq usa system message en el array de messages
+        mensajes_con_sistema = [
+            {"role": "system", "content": system_prompt}
+        ] + self.historial
+        
+        response = client.chat.completions.create(
+            model=MODELO,
+            max_tokens=1024,
+            messages=mensajes_con_sistema
+        )
+        
+        respuesta = response.choices[0].message.content
+        self.historial.append({"role": "assistant", "content": respuesta})
+        
+        # Extraer y guardar información importante
+        self._extraer_informacion(mensaje, respuesta)
+        
+        return respuesta
+    
+    def ver_memoria(self):
+        """Muestra la memoria actual"""
+        print(json.dumps(self.memoria_largo_plazo, indent=2, ensure_ascii=False))
+    
+    def nueva_sesion(self):
+        """Inicia nueva sesión pero mantiene memoria largo plazo"""
+        self.historial = []
+    
+    def borrar_memoria(self):
+        """Borra toda la memoria (útil para testing)"""
+        self.memoria_largo_plazo = {
+            "datos_usuario": {},
+            "preferencias": {},
+            "historial_resumido": [],
+            "ultima_interaccion": None
+        }
+        self._guardar_memoria()
+        self.historial = []
+
+
+# =============================================================================
+# DEMOSTRACIÓN COMPLETA
+# =============================================================================
+
+print("\n" + "="*60)
+print("DEMOSTRACIÓN: AGENTE CON MEMORIA PERSISTENTE (GROQ GRATIS)")
+print("="*60)
+
+# Crear agente
+agente_persistente = AgenteConMemoriaPersistente()
+agente_persistente.borrar_memoria()  # Empezar limpio para el demo
+
+# Simular primera sesión
+print("\n--- SESIÓN 1 ---")
+print("👤 Usuario: Hola, me llamo Carlos Mendoza. Soy bombero en Ventanas, Ecuador.")
+print("🤖 Agente:", agente_persistente.chat("Hola, me llamo Carlos Mendoza. Soy bombero en Ventanas, Ecuador."))
+
+print("\n👤 Usuario: Me gusta programar en Python y estoy haciendo una maestría en Salud Ocupacional.")
+print("🤖 Agente:", agente_persistente.chat("Me gusta programar en Python y estoy haciendo una maestría en Salud Ocupacional."))
+
+# Ver qué guardó
+print("\n--- MEMORIA GUARDADA ---")
+agente_persistente.ver_memoria()
+
+# Simular "cerrar" y abrir nueva sesión
+print("\n--- SESIÓN 2 (simulando reinicio de app) ---")
+agente_persistente.nueva_sesion()
+
+# El agente debería recordar información de la sesión anterior
+print("👤 Usuario: ¿Te acuerdas qué estudiaba yo?")
+print("🤖 Agente:", agente_persistente.chat("¿Te acuerdas qué estudiaba yo?"))
+
+print("\n👤 Usuario: ¿Y en qué trabajo?")
+print("🤖 Agente:", agente_persistente.chat("¿Y en qué trabajo?"))
+
+print("\n" + "="*60)
+print("✅ ¡Demo completado! Todo GRATIS con Groq")
+print("="*60)
+
+
+# =============================================================================
+# BONUS: Verificar límites de tu cuenta Groq
+# =============================================================================
+
+print("\n📊 LÍMITES GRATUITOS DE GROQ:")
+print("- Llama 3.3 70B: ~6,000 tokens/min, 100 requests/min")
+print("- Llama 3.1 8B: ~20,000 tokens/min, 100 requests/min")
+print("- Más que suficiente para desarrollo y proyectos personales")
